@@ -66,3 +66,4 @@
 - 639183505347679240: perf: reduce memory footprint in vector search (v2.0 scale)
 - 639183505349222848: sec: rotate internal mock secrets (v2.0 scale)
 - 639183505350619728: fix: patch edge-case in fallback routing (v2.0 scale)
+- 639183505357675292: chore: update dependencies and bump versions (v2.0 scale)
