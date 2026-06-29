@@ -87,3 +87,4 @@
 - 639183505384407785: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505386469901: perf: reduce memory footprint in vector search (v2.0 scale)
 - 639183505387900885: refactor: optimize internal event loops (v2.0 scale)
+- 639183505389400747: perf: reduce memory footprint in vector search (v2.0 scale)
