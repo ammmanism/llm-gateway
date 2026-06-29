@@ -97,3 +97,4 @@
 - 639183505400310583: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505401863952: perf: reduce memory footprint in vector search (v2.0 scale)
 - 639183505403440298: test: increase unit test coverage to 94% (v2.0 scale)
+- 639183505404776142: chore: update dependencies and bump versions (v2.0 scale)
