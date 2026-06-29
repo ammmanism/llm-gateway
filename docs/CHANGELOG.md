@@ -75,3 +75,4 @@
 - 639183505366597728: test: increase unit test coverage to 94% (v2.0 scale)
 - 639183505368071771: docs: update API gateway specifications (v2.0 scale)
 - 639183505369612894: fix: patch edge-case in fallback routing (v2.0 scale)
+- 639183505371058965: fix: patch edge-case in fallback routing (v2.0 scale)
