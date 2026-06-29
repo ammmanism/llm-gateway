@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 237, 237, 237;
+  --background-start-rgb: 10, 10, 11;
+  --background-end-rgb: 10, 10, 11;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-start-rgb));
+}
+
+/* Glassmorphism utilities */
+.glass-panel {
+  @apply bg-card border border-cardBorder backdrop-blur-xl rounded-2xl shadow-xl;
+}
