@@ -32,3 +32,4 @@
 - 639183505298276836: perf: reduce memory footprint in vector search (v2.0 scale)
 - 639183505299747016: style: format code according to strict PEP8 (v2.0 scale)
 - 639183505301361213: perf: reduce memory footprint in vector search (v2.0 scale)
+- 639183505302673222: test: increase unit test coverage to 94% (v2.0 scale)
