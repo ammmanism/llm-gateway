@@ -90,3 +90,4 @@
 - 639183505389400747: perf: reduce memory footprint in vector search (v2.0 scale)
 - 639183505390927367: style: format code according to strict PEP8 (v2.0 scale)
 - 639183505392787267: docs: update API gateway specifications (v2.0 scale)
+- 639183505394282591: sec: rotate internal mock secrets (v2.0 scale)
