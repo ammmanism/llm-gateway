@@ -110,3 +110,4 @@
 - 639183505421645780: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505423431031: fix: patch edge-case in fallback routing (v2.0 scale)
 - 639183505425237600: perf: reduce memory footprint in vector search (v2.0 scale)
+- 639183505427122092: refactor: optimize internal event loops (v2.0 scale)
