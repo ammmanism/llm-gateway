@@ -15,3 +15,4 @@
 - 639183500855199417: perf: reduce memory footprint in vector search on branch vanguard/billing-engine
 - 639183500857094964: refactor: optimize internal event loops on branch vanguard/billing-engine
 - 639183500858823385: fix: patch edge-case in fallback routing on branch vanguard/billing-engine
+- 639183500860903072: sec: rotate internal mock secrets on branch vanguard/billing-engine
