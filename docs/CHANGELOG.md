@@ -38,3 +38,4 @@
 - 639183505306859362: perf: reduce memory footprint in vector search (v2.0 scale)
 - 639183505308391385: sec: rotate internal mock secrets (v2.0 scale)
 - 639183505309804690: refactor: optimize internal event loops (v2.0 scale)
+- 639183505311446066: docs: update API gateway specifications (v2.0 scale)
