@@ -67,3 +67,4 @@
 - 639183505349222848: sec: rotate internal mock secrets (v2.0 scale)
 - 639183505350619728: fix: patch edge-case in fallback routing (v2.0 scale)
 - 639183505357675292: chore: update dependencies and bump versions (v2.0 scale)
+- 639183505359086490: test: increase unit test coverage to 94% (v2.0 scale)
