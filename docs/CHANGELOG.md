@@ -95,3 +95,4 @@
 - 639183505397355533: style: format code according to strict PEP8 (v2.0 scale)
 - 639183505398776508: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505400310583: chore: update dependencies and bump versions (v2.0 scale)
+- 639183505401863952: perf: reduce memory footprint in vector search (v2.0 scale)
