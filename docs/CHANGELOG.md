@@ -64,3 +64,4 @@
 - 639183505344592799: sec: rotate internal mock secrets (v2.0 scale)
 - 639183505346150519: style: format code according to strict PEP8 (v2.0 scale)
 - 639183505347679240: perf: reduce memory footprint in vector search (v2.0 scale)
+- 639183505349222848: sec: rotate internal mock secrets (v2.0 scale)
