@@ -35,3 +35,4 @@
 - 639183505302673222: test: increase unit test coverage to 94% (v2.0 scale)
 - 639183505304186213: style: format code according to strict PEP8 (v2.0 scale)
 - 639183505305445109: style: format code according to strict PEP8 (v2.0 scale)
+- 639183505306859362: perf: reduce memory footprint in vector search (v2.0 scale)
