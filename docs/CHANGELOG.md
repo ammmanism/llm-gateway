@@ -107,3 +107,4 @@
 - 639183505416180153: sec: rotate internal mock secrets (v2.0 scale)
 - 639183505418007630: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505419820635: chore: update dependencies and bump versions (v2.0 scale)
+- 639183505421645780: chore: update dependencies and bump versions (v2.0 scale)
