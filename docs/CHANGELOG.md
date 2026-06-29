@@ -55,3 +55,4 @@
 - 639183505331296178: fix: patch edge-case in fallback routing (v2.0 scale)
 - 639183505332686171: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505334272206: style: format code according to strict PEP8 (v2.0 scale)
+- 639183505335677120: refactor: optimize internal event loops (v2.0 scale)
