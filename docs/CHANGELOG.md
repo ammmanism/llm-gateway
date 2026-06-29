@@ -12,3 +12,4 @@
 - 639183500848996904: test: increase unit test coverage to 94% on branch titan/k8s-infrastructure
 - 639183500851555080: refactor: optimize internal event loops on branch vanguard/billing-engine
 - 639183500853402076: refactor: optimize internal event loops on branch vanguard/billing-engine
+- 639183500855199417: perf: reduce memory footprint in vector search on branch vanguard/billing-engine
