@@ -24,3 +24,4 @@
 - 639183505285938825: fix: patch edge-case in fallback routing (v2.0 scale)
 - 639183505287558325: style: format code according to strict PEP8 (v2.0 scale)
 - 639183505289130618: docs: update API gateway specifications (v2.0 scale)
+- 639183505290726089: chore: update dependencies and bump versions (v2.0 scale)
