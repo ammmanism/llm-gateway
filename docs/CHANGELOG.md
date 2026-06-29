@@ -113,3 +113,4 @@
 - 639183505427122092: refactor: optimize internal event loops (v2.0 scale)
 - 639183505429099822: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505430746317: chore: update dependencies and bump versions (v2.0 scale)
+- 639183505432486423: fix: patch edge-case in fallback routing (v2.0 scale)
