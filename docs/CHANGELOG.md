@@ -52,3 +52,4 @@
 - 639183505327064543: fix: patch edge-case in fallback routing (v2.0 scale)
 - 639183505328489276: perf: reduce memory footprint in vector search (v2.0 scale)
 - 639183505329826036: refactor: optimize internal event loops (v2.0 scale)
+- 639183505331296178: fix: patch edge-case in fallback routing (v2.0 scale)
