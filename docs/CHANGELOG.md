@@ -62,3 +62,4 @@
 - 639183505341641954: test: increase unit test coverage to 94% (v2.0 scale)
 - 639183505343188512: sec: rotate internal mock secrets (v2.0 scale)
 - 639183505344592799: sec: rotate internal mock secrets (v2.0 scale)
+- 639183505346150519: style: format code according to strict PEP8 (v2.0 scale)
