@@ -101,3 +101,4 @@
 - 639183505406449450: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505407925761: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505409441460: test: increase unit test coverage to 94% (v2.0 scale)
+- 639183505410937802: style: format code according to strict PEP8 (v2.0 scale)
