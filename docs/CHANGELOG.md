@@ -71,3 +71,4 @@
 - 639183505360575495: fix: patch edge-case in fallback routing (v2.0 scale)
 - 639183505361980871: sec: rotate internal mock secrets (v2.0 scale)
 - 639183505363505723: fix: patch edge-case in fallback routing (v2.0 scale)
+- 639183505365130989: refactor: optimize internal event loops (v2.0 scale)
