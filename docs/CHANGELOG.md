@@ -6,3 +6,4 @@
 - 639183500837736725: sec: rotate internal mock secrets on branch titan/k8s-infrastructure
 - 639183500839737809: sec: rotate internal mock secrets on branch titan/k8s-infrastructure
 - 639183500841671724: refactor: optimize internal event loops on branch titan/k8s-infrastructure
+- 639183500843540542: docs: update API gateway specifications on branch titan/k8s-infrastructure
