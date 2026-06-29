@@ -19,3 +19,4 @@
 - 639183500862850421: refactor: optimize internal event loops on branch vanguard/billing-engine
 - 639183500864647224: docs: update API gateway specifications on branch vanguard/billing-engine
 - 639183500866469893: chore: update dependencies and bump versions on branch vanguard/billing-engine
+- 639183500868364514: style: format code according to strict PEP8 on branch vanguard/billing-engine
