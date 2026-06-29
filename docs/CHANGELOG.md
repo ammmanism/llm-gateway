@@ -1,3 +1,4 @@
 - 639183500821828488: perf: reduce memory footprint in vector search on branch titan/k8s-infrastructure
 - 639183500823679966: fix: patch edge-case in fallback routing on branch titan/k8s-infrastructure
 - 639183500825804254: sec: rotate internal mock secrets on branch titan/k8s-infrastructure
+- 639183500830178026: sec: rotate internal mock secrets on branch titan/k8s-infrastructure
