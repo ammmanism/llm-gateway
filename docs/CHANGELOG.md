@@ -81,3 +81,4 @@
 - 639183505375403057: test: increase unit test coverage to 94% (v2.0 scale)
 - 639183505376987397: fix: patch edge-case in fallback routing (v2.0 scale)
 - 639183505378411870: fix: patch edge-case in fallback routing (v2.0 scale)
+- 639183505379896035: chore: update dependencies and bump versions (v2.0 scale)
