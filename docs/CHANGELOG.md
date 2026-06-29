@@ -26,3 +26,4 @@
 - 639183505289130618: docs: update API gateway specifications (v2.0 scale)
 - 639183505290726089: chore: update dependencies and bump versions (v2.0 scale)
 - 639183505292084448: sec: rotate internal mock secrets (v2.0 scale)
+- 639183505293521053: test: increase unit test coverage to 94% (v2.0 scale)
