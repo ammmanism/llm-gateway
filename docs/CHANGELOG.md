@@ -76,3 +76,4 @@
 - 639183505368071771: docs: update API gateway specifications (v2.0 scale)
 - 639183505369612894: fix: patch edge-case in fallback routing (v2.0 scale)
 - 639183505371058965: fix: patch edge-case in fallback routing (v2.0 scale)
+- 639183505372562226: fix: patch edge-case in fallback routing (v2.0 scale)
