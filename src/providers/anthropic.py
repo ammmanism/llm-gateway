@@ -1,6 +1,6 @@
 import httpx
 import time
-from typing import Dict, Any
+from typing import Dict, Any, AsyncGenerator
 from src.providers.base import BaseProvider, CompletionResponse
 from src.config import settings
 
@@ -23,6 +23,93 @@ class AnthropicProvider(BaseProvider):
         # default to haiku if unknown
         p = prices.get(model, prices["claude-haiku-3.5"])
         return tokens_in * p["in"] + tokens_out * p["out"]
+
+    async def stream(self, model: str, messages: list[Dict[str, Any]], params: Dict[str, Any]) -> AsyncGenerator[str, None]:
+        import uuid
+        import json
+        
+        headers = {
+            "x-api-key": settings.ANTHROPIC_API_KEY or "",
+            "anthropic-version": "2023-06-01",
+            "Content-Type": "application/json"
+        }
+        
+        system_prompt = ""
+        filtered_messages = []
+        for msg in messages:
+            if msg.get("role") == "system":
+                system_prompt += msg.get("content", "") + "\n"
+            else:
+                filtered_messages.append(msg)
+                
+        payload = {
+            "model": model,
+            "messages": filtered_messages,
+            "max_tokens": params.get("max_tokens", 1000),
+            "stream": True,
+            **{k:v for k,v in params.items() if k not in ["max_tokens", "presence_penalty", "frequency_penalty", "stream"]}
+        }
+        
+        if system_prompt:
+            payload["system"] = system_prompt.strip()
+            
+        msg_id = f"msg_{uuid.uuid4().hex}"
+        created_time = int(time.time())
+        done_yielded = False
+        
+        async with httpx.AsyncClient() as client:
+            async with client.stream("POST", "https://api.anthropic.com/v1/messages", headers=headers, json=payload, timeout=60.0) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith("data:"):
+                        data_str = line[len("data:"):].strip()
+                        try:
+                            data = json.loads(data_str)
+                            data_type = data.get("type")
+                            if data_type == "message_start":
+                                msg_id = data.get("message", {}).get("id", msg_id)
+                                model = data.get("message", {}).get("model", model)
+                            elif data_type == "content_block_delta":
+                                text = data.get("delta", {}).get("text", "")
+                                if text:
+                                    oai_chunk = {
+                                        "id": msg_id,
+                                        "object": "chat.completion.chunk",
+                                        "created": created_time,
+                                        "model": model,
+                                        "choices": [{
+                                            "index": 0,
+                                            "delta": {"content": text},
+                                            "finish_reason": None
+                                        }]
+                                    }
+                                    yield f"data: {json.dumps(oai_chunk)}\n\n"
+                            elif data_type == "message_delta":
+                                stop_reason = data.get("delta", {}).get("stop_reason")
+                                if stop_reason == "end_turn":
+                                    stop_reason = "stop"
+                                oai_chunk = {
+                                    "id": msg_id,
+                                    "object": "chat.completion.chunk",
+                                    "created": created_time,
+                                    "model": model,
+                                    "choices": [{
+                                        "index": 0,
+                                        "delta": {},
+                                        "finish_reason": stop_reason or "stop"
+                                    }]
+                                }
+                                yield f"data: {json.dumps(oai_chunk)}\n\n"
+                                yield "data: [DONE]\n\n"
+                                done_yielded = True
+                        except json.JSONDecodeError:
+                            pass
+                
+                if not done_yielded:
+                    yield "data: [DONE]\n\n"
 
     async def complete(self, model: str, messages: list[Dict[str, Any]], params: Dict[str, Any]) -> CompletionResponse:
         start_time = time.time()

@@ -1,4 +1,4 @@
-# Neurocache 🧠⚡️
+# Neurocache ️
 
 [![CI](https://github.com/neurocache/neurocache/actions/workflows/ci.yml/badge.svg)](https://github.com/neurocache/neurocache/actions)
 [![Docker Pulls](https://img.shields.io/docker/pulls/neurocache/neurocache)](https://hub.docker.com/r/neurocache/neurocache)
@@ -17,14 +17,14 @@ If you are using LLMs in production, you are probably paying too much.
 
 ### Feature Comparison
 
-| Feature | Neurocache | LiteLLM | Kong | Raw API |
-| :--- | :---: | :---: | :---: | :---: |
-| **OpenAI Compatible API** | ✅ | ✅ | ✅ | ❌ |
-| **Multi-Provider Routing** | ✅ | ✅ | ✅ | ❌ |
-| **Semantic Caching (FAISS)**| ✅ | ❌ (Exact Match Only) | ❌ | ❌ |
-| **Multi-Objective Routing** | ✅ (Cost+Lat+Rel) | ❌ (Single Obj) | ❌ | ❌ |
-| **A/B Testing** | ✅ (Thompson) | ❌ | ❌ | ❌ |
-| **Drift Detection** | ✅ | ❌ | ❌ | ❌ |
+ Feature  Neurocache  LiteLLM  Kong  Raw API 
+ :---  :---:  :---:  :---:  :---: 
+ **OpenAI Compatible API**         
+ **Multi-Provider Routing**         
+ **Semantic Caching (FAISS)**    (Exact Match Only)     
+ **Multi-Objective Routing**   (Cost+Lat+Rel)   (Single Obj)     
+ **A/B Testing**   (Thompson)       
+ **Drift Detection**         
 
 ## Quick Start (30 Seconds)
 

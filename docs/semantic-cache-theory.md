@@ -5,9 +5,9 @@
 Semantic caching relies on embedding vectors. We use `sentence-transformers/all-MiniLM-L6-v2` which produces a 384-dimensional vector $v \in \mathbb{R}^{384}$.
 
 Cosine similarity between two vectors $A$ and $B$ is defined as:
-$$ \text{similarity} = \cos(\theta) = \frac{A \cdot B}{\|A\| \|B\|} $$
+$$ \text{similarity} = \cos(\theta) = \frac{A \cdot B}{\A\ \B\} $$
 
-By L2-normalizing our vectors before indexing, $\|A\| = \|B\| = 1$, the cosine similarity simplifies to the dot product:
+By L2-normalizing our vectors before indexing, $\A\ = \B\ = 1$, the cosine similarity simplifies to the dot product:
 $$ \text{similarity} = A \cdot B $$
 
 This is extremely fast to compute and allows us to use FAISS's `METRIC_INNER_PRODUCT` for optimized search.
