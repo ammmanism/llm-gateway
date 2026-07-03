@@ -58,3 +58,32 @@ def require_role(required_role: Role):
     """Decorator to enforce role-based access."""
     def decorator(func):
         @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Find request object in args or kwargs
+            request = None
+            for arg in args:
+                if isinstance(arg, Request):
+                    request = arg
+                    break
+            if not request:
+                for key, val in kwargs.items():
+                    if isinstance(val, Request):
+                        request = val
+                        break
+            if not request:
+                # Fallback: check if first arg is request
+                if args and isinstance(args[0], Request):
+                    request = args[0]
+
+            if request:
+                user_role = getattr(request.state, "user_role", None)
+                if user_role is None:
+                    raise HTTPException(401, "Authentication required")
+                if user_role != required_role.value and "admin" not in user_role:
+                    # Check if role has permission via '*' wildcard
+                    permissions = getattr(request.state, "permissions", [])
+                    if "*" not in permissions:
+                        raise HTTPException(403, "Insufficient permissions")
+            return await func(*args, **kwargs)
+        return wrapper
+    return decorator
