@@ -28,3 +28,10 @@ def setup_tracing(app: FastAPI):
         span_processor = BatchSpanProcessor(jaeger_exporter)
         provider.add_span_processor(span_processor)
 
+        # Instrument FastAPI
+        FastAPIInstrumentor.instrument_app(app)
+        logger.info("OpenTelemetry tracing enabled")
+    except ImportError:
+        logger.warning("OpenTelemetry not installed, tracing disabled")
+    except Exception as e:
+        logger.warning(f"Failed to setup tracing: {e}")
