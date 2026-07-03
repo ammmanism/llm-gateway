@@ -1,12 +1,20 @@
 """
-Fusion Engine - Cross-Modal Synthesis execution logic.
+Fusion Engine – Cross-Modal Synthesis
 """
 
 import asyncio
+import logging
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
-from omnimodal.fusion.dag import FusionStage, FusionStageType
+from enum import Enum, auto
 
+from .dag import FusionStage, FusionDAG, FusionStageType
+from ..modalities.text import TextAdapter
+from ..modalities.image import ImageAdapter
+from ..modalities.audio import AudioAdapter
+from ..modalities.video import VideoAdapter
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class FusionResult:
@@ -16,104 +24,190 @@ class FusionResult:
     cost_usd: float = 0.0
     latency_ms: int = 0
 
+class FusionPlanner:
+    def __init__(self):
+        self.transformation_rules = self._init_rules()
 
-@dataclass
-class FusionDAG:
-    """Directed Acyclic Graph of fusion operations."""
-    stages: List[FusionStage]
-    inputs: List[Dict[str, Any]]
-    output_modality: str
-    
-    async def execute(self, adapters: Dict[str, Any]) -> FusionResult:
-        """Execute the DAG with parallelization."""
-        results = {}
-        completed = set()
-        
-        # Execute stages in topological order
-        while len(completed) < len(self.stages):
-            ready = [
-                s for s in self.stages
-                if s.id not in completed
-                and all(dep in completed for dep in s.dependencies)
-            ]
-            
-            if not ready:
-                # Break to avoid infinite loop on malformed DAGs
-                break
-            
-            # Group parallelizable stages
-            parallel_groups = []
-            current_group = []
-            
-            for stage in ready:
-                if stage.can_parallelize and current_group:
-                    current_group.append(stage)
-                else:
-                    if current_group:
-                        parallel_groups.append(current_group)
-                    current_group = [stage]
-            
-            if current_group:
-                parallel_groups.append(current_group)
-            
-            # Execute groups
-            for group in parallel_groups:
-                if len(group) == 1:
-                    results[group[0].id] = await self._execute_stage(
-                        group[0], adapters, results
-                    )
-                    completed.add(group[0].id)
-                else:
-                    # Parallel execution
-                    tasks = [
-                        self._execute_stage(stage, adapters, results)
-                        for stage in group
-                    ]
-                    stage_results = await asyncio.gather(*tasks)
-                    for stage, result in zip(group, stage_results):
-                        results[stage.id] = result
-                        completed.add(stage.id)
-        
-        # Resolve final result
-        final_stage_id = self.stages[-1].id if self.stages else "stage_1"
-        final_out = results.get(final_stage_id, "[Mock Fusion Output]")
-        
-        # Extract content out of modality responses if wrapped
-        content_val = getattr(final_out, "content", final_out)
-        
-        providers = []
-        for res in results.values():
-            prov = getattr(res, "provider", "unknown")
-            if prov != "unknown":
-                providers.append(prov)
-                
-        return FusionResult(
-            content=content_val,
-            stages_executed=len(self.stages),
-            providers=list(set(providers)) if providers else ["openai"]
+    def _init_rules(self) -> Dict[str, List[str]]:
+        return {
+            "text": ["text", "image", "audio"],
+            "image": ["text", "image", "video"],
+            "audio": ["text", "audio"],
+            "video": ["text", "image", "audio", "video"],
+        }
+
+    def plan(
+        self,
+        inputs: List[Dict[str, Any]],
+        output_modality: str,
+        constraints: Optional[Dict] = None
+    ) -> FusionDAG:
+        constraints = constraints or {}
+        input_modalities = [inp["type"] for inp in inputs]
+
+        # Direct generation
+        if len(input_modalities) == 1 and input_modalities[0] == output_modality:
+            return self._plan_direct(inputs, output_modality, constraints)
+
+        # Specific fusion patterns
+        if output_modality == "video" and "image" in input_modalities:
+            return self._plan_image_to_video(inputs, constraints)
+
+        if output_modality == "text" and "video" in input_modalities:
+            return self._plan_video_to_text(inputs, constraints)
+
+        if output_modality == "multimodal":
+            return self._plan_multimodal_output(inputs, constraints)
+
+        return self._plan_generic(inputs, output_modality, constraints)
+
+    def _plan_direct(self, inputs, output_modality, constraints) -> FusionDAG:
+        adapter_map = {"text": "text", "image": "image", "audio": "audio", "video": "video"}
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="stage_1",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality=output_modality,
+                    operation="generate",
+                    adapter=adapter_map[output_modality],
+                    params={"quality": constraints.get("quality", "standard")}
+                )
+            ],
+            inputs=inputs,
+            output_modality=output_modality
         )
 
-    async def _execute_stage(self, stage: FusionStage, adapters: Dict, prior_results: Dict) -> Any:
-        """Execute a single fusion stage."""
-        adapter = adapters.get(stage.adapter)
-        if not adapter:
-            raise ValueError(f"Unknown adapter: {stage.adapter}")
-        
-        # Resolve inputs
-        resolved_inputs = []
-        for inp in stage.inputs:
-            if inp in prior_results:
-                resolved_inputs.append(prior_results[inp])
-            else:
-                resolved_inputs.append(inp)
-        
-        # Execute based on operation
-        if stage.operation == "generate":
-            return await adapter.generate(resolved_inputs, **stage.params)
-        elif stage.operation == "edit":
-            return await adapter.edit(*resolved_inputs, **stage.params)
-        elif stage.operation == "understand":
-            return await adapter.understand(*resolved_inputs, **stage.params)
-        else:
-            raise ValueError(f"Unknown operation: {stage.operation}")
+    def _plan_image_to_video(self, inputs, constraints) -> FusionDAG:
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="extract_image",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_image"],
+                    output_modality="image",
+                    operation="generate",
+                    adapter="image",
+                    params={"operation": "validate"}
+                ),
+                FusionStage(
+                    id="generate_video",
+                    stage_type=FusionStageType.COMBINE,
+                    inputs=["extract_image", "raw_text"],
+                    output_modality="video",
+                    operation="generate",
+                    adapter="video",
+                    params={"duration": constraints.get("duration_seconds", 4)},
+                    dependencies=["extract_image"]
+                )
+            ],
+            inputs=inputs,
+            output_modality="video"
+        )
 
+    def _plan_video_to_text(self, inputs, constraints) -> FusionDAG:
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="extract_frames",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_video"],
+                    output_modality="image",
+                    operation="extract",
+                    adapter="video",
+                    params={"fps": 1}
+                ),
+                FusionStage(
+                    id="extract_audio",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_video"],
+                    output_modality="audio",
+                    operation="extract",
+                    adapter="video",
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="analyze_frames",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["extract_frames"],
+                    output_modality="text",
+                    operation="understand",
+                    adapter="image",
+                    dependencies=["extract_frames"],
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="transcribe_audio",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["extract_audio"],
+                    output_modality="text",
+                    operation="transcribe",
+                    adapter="audio",
+                    dependencies=["extract_audio"],
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="fuse_understanding",
+                    stage_type=FusionStageType.COMBINE,
+                    inputs=["analyze_frames", "transcribe_audio"],
+                    output_modality="text",
+                    operation="understand",
+                    adapter="text",
+                    dependencies=["analyze_frames", "transcribe_audio"]
+                )
+            ],
+            inputs=inputs,
+            output_modality="text"
+        )
+
+    def _plan_multimodal_output(self, inputs, constraints) -> FusionDAG:
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="gen_text",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="text",
+                    operation="generate",
+                    adapter="text",
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="gen_image",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="image",
+                    operation="generate",
+                    adapter="image",
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="gen_audio",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="audio",
+                    operation="generate",
+                    adapter="audio",
+                    can_parallelize=True
+                )
+            ],
+            inputs=inputs,
+            output_modality="multimodal"
+        )
+
+    def _plan_generic(self, inputs, output_modality, constraints) -> FusionDAG:
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="generic_transform",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality=output_modality,
+                    operation="generate",
+                    adapter=output_modality
+                )
+            ],
+            inputs=inputs,
+            output_modality=output_modality
+        )
