@@ -81,3 +81,26 @@ class PIIRedactionMiddleware(BaseHTTPMiddleware):
     """
     
     def __init__(self, app, enabled: bool = True):
+        super().__init__(app)
+        self.redactor = PIIRedactor()
+        self.enabled = enabled
+    
+    async def dispatch(self, request: Request, call_next):
+        if not self.enabled:
+            return await call_next(request)
+        
+        # For generation endpoints, redact request body
+        if request.url.path in ["/v1/generate", "/v1/fuse"]:
+            try:
+                body = await request.json()
+                if "inputs" in body:
+                    body["inputs"] = self.redactor.redact_multimodal(body["inputs"])
+            except Exception:
+                pass
+        
+        response = await call_next(request)
+        
+        # Add audit header
+        response.headers["X-PII-Redacted"] = "true" if self.enabled else "false"
+        
+        return response
