@@ -38,3 +38,24 @@ class TokenBucket:
         return True
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, redis_client, requests_per_minute: int = 60, burst_size: int = 10):
+        super().__init__(app)
+        self.bucket = TokenBucket(redis_client, burst_size, requests_per_minute / 60)
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        client_id = self._get_client_id(request)
+        allowed = await self.bucket.consume(client_id)
+        if not allowed:
+            raise HTTPException(429, detail="Rate limit exceeded")
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(self.bucket.capacity)
+        return response
+
+    def _get_client_id(self, request: Request) -> str:
+        api_key = request.headers.get("X-API-Key", "")
+        if api_key:
+            return f"api:{api_key}"
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        if forwarded:
+            return f"ip:{forwarded.split(',')[0].strip()}"
+        return f"ip:{request.client.host if request.client else 'unknown'}"
