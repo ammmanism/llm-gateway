@@ -117,3 +117,97 @@ class TextAdapter(BaseModalityAdapter):
             max_tokens=max_tokens,
             temperature=temperature
         )
+        
+        content = response.choices[0].message.content
+        tokens_in = response.usage.prompt_tokens
+        tokens_out = response.usage.completion_tokens
+        
+        prices = self.pricing.get(model, self.pricing["unknown"])
+        cost = (tokens_in / 1000 * prices["input"] + 
+                tokens_out / 1000 * prices["output"])
+        
+        return TextResponse(
+            content=content,
+            model=model,
+            provider="openai",
+            tokens_input=tokens_in,
+            tokens_output=tokens_out,
+            cost=round(cost, 6)
+        )
+    
+    async def _generate_anthropic(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
+        """Generate using Anthropic."""
+        client = self.clients.get("anthropic")
+        if client is None:
+            # Mock fallback
+            await asyncio.sleep(0.1)
+            return TextResponse(
+                content=f"[Mock Anthropic Response for prompt: {prompt[:30]}...]",
+                model=model,
+                provider="anthropic",
+                tokens_input=10,
+                tokens_output=20,
+                cost=0.001
+            )
+        
+        response = await client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        
+        content = response.content[0].text
+        tokens_in = response.usage.input_tokens
+        tokens_out = response.usage.output_tokens
+        
+        prices = self.pricing.get(model, self.pricing["unknown"])
+        cost = (tokens_in / 1000 * prices["input"] + 
+                tokens_out / 1000 * prices["output"])
+        
+        return TextResponse(
+            content=content,
+            model=model,
+            provider="anthropic",
+            tokens_input=tokens_in,
+            tokens_output=tokens_out,
+            cost=round(cost, 6)
+        )
+    
+    async def _generate_google(self, prompt, model, max_tokens, temperature):
+        """Google Gemini implementation."""
+        await asyncio.sleep(0.1)
+        return TextResponse(
+            content=f"[Mock Google Gemini response for prompt: {prompt[:30]}...]",
+            model=model,
+            provider="google",
+            tokens_input=12,
+            tokens_output=24,
+            cost=0.0005
+        )
+    
+    async def _generate_local(self, prompt, model, max_tokens, temperature):
+        """Local Ollama implementation."""
+        await asyncio.sleep(0.05)
+        return TextResponse(
+            content=f"[Mock Local Ollama response for prompt: {prompt[:30]}...]",
+            model=model,
+            provider="local",
+            tokens_input=15,
+            tokens_output=30,
+            cost=0.0
+        )
+    
+    async def generate_stream(self, inputs: List[Any], provider: str = "openai"):
+        """
+        Stream text generation for real-time applications.
+        """
+        prompt = self._extract_prompt(inputs)
+        client = self.clients.get(provider)
+        
+        if provider == "openai" and client is not None:
+            stream = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
