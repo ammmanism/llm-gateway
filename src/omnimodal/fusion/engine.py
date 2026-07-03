@@ -111,3 +111,9 @@ class FusionDAG:
         if stage.operation == "generate":
             return await adapter.generate(resolved_inputs, **stage.params)
         elif stage.operation == "edit":
+            return await adapter.edit(*resolved_inputs, **stage.params)
+        elif stage.operation == "understand":
+            return await adapter.understand(*resolved_inputs, **stage.params)
+        else:
+            raise ValueError(f"Unknown operation: {stage.operation}")
+
