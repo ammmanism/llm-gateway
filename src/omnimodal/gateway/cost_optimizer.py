@@ -79,3 +79,35 @@ class CostOptimizer:
     """
     
     def __init__(self):
+        self.cache = SemanticCache()
+        self.savings_tracker = {
+            "cache_hits": 0,
+            "downgrades": 0,
+            "provider_arbitrage": 0,
+            "total_saved_usd": 0.0
+        }
+        self.model_downgrade_map = {
+            "gpt-4o": "claude-3-haiku",  # For simple tasks
+            "claude-3-opus": "claude-3-sonnet",
+            "dall-e-3": "stable-diffusion-3",  # For non-critical images
+        }
+    
+    async def optimize(
+        self,
+        route_decision: Any,
+        request: Any,
+        complexity: int = 5
+    ) -> CostEstimate:
+        """
+        Apply cost optimization strategies.
+        """
+        optimizations = []
+        original_cost = route_decision.estimated_cost
+        
+        # Strategy 1: Check cache
+        # Check if request has parameters or prompts
+        prompt = str(getattr(request, "inputs", request.get("inputs", "")))
+        quality = getattr(request, "quality", request.get("quality", "standard"))
+        output_modality = getattr(request, "output_modality", request.get("output_modality", "text"))
+        
+        cached = await self.cache.get(
