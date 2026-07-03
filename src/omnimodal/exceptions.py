@@ -18,3 +18,10 @@ class AuthenticationError(OmniModalError):
     """Raised when authentication fails."""
     pass
 
+class ConfigurationError(OmniModalError):
+    """Raised when configuration is invalid."""
+    pass
+
+class CacheError(OmniModalError):
+    """Raised when cache operation fails."""
+    pass
