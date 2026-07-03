@@ -28,3 +28,33 @@ REQUEST_COST = Counter(
     ["provider", "modality"]
 )
 
+CACHE_HIT = Counter(
+    "omnimodal_cache_hits_total",
+    "Cache hits by type",
+    ["cache_type"]
+)
+
+CACHE_MISS = Counter(
+    "omnimodal_cache_misses_total",
+    "Cache misses by type",
+    ["cache_type"]
+)
+
+PROVIDER_HEALTH = Gauge(
+    "omnimodal_provider_health",
+    "Provider health status (1=healthy, 0=unhealthy)",
+    ["provider"]
+)
+
+CIRCUIT_BREAKER_STATE = Gauge(
+    "omnimodal_circuit_breaker_state",
+    "Circuit breaker state (0=closed, 1=half-open, 2=open)",
+    ["provider"]
+)
+
+class MetricsCollector:
+    def __init__(self):
+        self.request_count = 0
+        self.error_count = 0
+        self.total_cost = 0.0
+
