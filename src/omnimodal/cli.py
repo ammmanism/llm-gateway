@@ -146,3 +146,86 @@ def transcribe(ctx, audio_file, language, output):
             Path(output).write_text(json.dumps(output_data, indent=2))
             click.echo(f"Success: Saved to {output}")
         else:
+            click.echo(result.content)
+    
+    asyncio.run(_transcribe())
+
+
+@cli.command()
+@click.option("--input", "-i", multiple=True, help="Inputs in format type:content")
+@click.option("--output-modality", "-o", type=click.Choice(["text", "image", "audio", "video", "multimodal"]), required=True)
+@click.option("--operation", default="fuse")
+@click.option("--duration", type=int, help="Duration in seconds (for video/audio)")
+@click.pass_context
+def fuse(ctx, input, output_modality, operation, duration):
+    """Fuse multiple modalities into one output."""
+    async def _fuse():
+        client = MockOmniClient(api_key=ctx.obj["api_key"])
+        
+        inputs = []
+        for item in input:
+            if ":" not in item:
+                raise click.BadParameter(f"Input must be in format type:content, got {item}")
+            type_, content = item.split(":", 1)
+            inputs.append({"type": type_, "content": content})
+        
+        click.echo(f"Fusing {len(inputs)} inputs into {output_modality}...")
+        
+        result = await client.fuse(
+            inputs=inputs,
+            output=output_modality,
+            operation=operation,
+            duration_seconds=duration
+        )
+        
+        click.echo(f"Fusion complete!")
+        click.echo(f"Providers used: {', '.join(result.providers)}")
+    
+    asyncio.run(_fuse())
+
+
+@cli.command()
+@click.option("--provider", "-p", help="Check specific provider")
+@click.pass_context
+def health(ctx, provider):
+    """Check system health."""
+    async def _health():
+        client = MockOmniClient()
+        status = await client.health()
+        
+        click.echo(f"OmniModal v{status['version']}")
+        click.echo(f"Status: {status['status']}")
+        
+        for name, info in status.get("providers", {}).items():
+            icon = "ENABLED" if info["enabled"] else "DISABLED"
+            click.echo(f"  [{icon}] {name}: {', '.join(info['regions'])}")
+    
+    asyncio.run(_health())
+
+
+@cli.command()
+@click.option("--days", default=30, help="Days to analyze")
+@click.pass_context
+def costs(ctx, days):
+    """Show cost savings report."""
+    async def _costs():
+        client = MockOmniClient(api_key=ctx.obj["api_key"])
+        report = await client.get_cost_report(days=days)
+        
+        click.echo(f"Cost Report (Last {days} days)")
+        click.echo(f"Total Optimizations: {report['total_optimizations']}")
+        click.echo(f"Cache Hits: {report['cache_hits']}")
+        click.echo(f"Model Downgrades: {report['model_downgrades']}")
+        click.echo(f"Total Saved: ${report['total_saved_usd']:.2f}")
+        click.echo(f"Cache Hit Rate: {report['cache_hit_rate']:.1%}")
+    
+    asyncio.run(_costs())
+
+
+def main():
+    """Entry point."""
+    cli()
+
+
+if __name__ == "__main__":
+    main()
