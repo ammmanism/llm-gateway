@@ -1,23 +1,30 @@
 """
-Distributed Tracing Module
-Uses OpenTelemetry for tracking requests across providers.
+OpenTelemetry Tracing
 """
 
-from typing import Optional
+import logging
+from fastapi import FastAPI
 
+logger = logging.getLogger(__name__)
 
-class Tracer:
-    """
-    Tracing engine for request pipelines.
-    """
-    
-    def __init__(self, service_name: str = "omnimodal"):
-        self.service_name = service_name
+def setup_tracing(app: FastAPI):
+    """Setup OpenTelemetry instrumentation."""
+    try:
+        from opentelemetry import trace
+        from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-    def start_span(self, name: str) -> str:
-        """Start a trace span and return span ID."""
-        return f"span_{name}"
+        # Setup tracer provider
+        provider = TracerProvider()
+        trace.set_tracer_provider(provider)
 
-    def end_span(self, span_id: str):
-        """End span logging."""
-        pass
+        # Setup Jaeger exporter
+        jaeger_exporter = JaegerExporter(
+            agent_host_name="jaeger",
+            agent_port=6831,
+        )
+        span_processor = BatchSpanProcessor(jaeger_exporter)
+        provider.add_span_processor(span_processor)
+
