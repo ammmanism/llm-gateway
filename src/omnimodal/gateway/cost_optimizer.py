@@ -111,3 +111,65 @@ class CostOptimizer:
         output_modality = getattr(request, "output_modality", request.get("output_modality", "text"))
         
         cached = await self.cache.get(
+            output_modality,
+            prompt,
+            {"quality": quality}
+        )
+        if cached:
+            self.savings_tracker["cache_hits"] += 1
+            self.savings_tracker["total_saved_usd"] += original_cost
+            return CostEstimate(
+                provider="cache",
+                model="hit",
+                estimated_usd=0.0,
+                confidence=1.0,
+                optimization_applied=["semantic_cache"]
+            )
+        
+        # Strategy 2: Model downgrade for simple tasks
+        if complexity <= 3 and route_decision.model in self.model_downgrade_map:
+            cheaper_model = self.model_downgrade_map[route_decision.model]
+            savings = original_cost * 0.6  # ~60% savings
+            self.savings_tracker["downgrades"] += 1
+            self.savings_tracker["total_saved_usd"] += savings
+            optimizations.append("model_downgrade")
+            
+            return CostEstimate(
+                provider=route_decision.provider,
+                model=cheaper_model,
+                estimated_usd=original_cost - savings,
+                confidence=0.9,
+                optimization_applied=optimizations
+            )
+        
+        return CostEstimate(
+            provider=route_decision.provider,
+            model=route_decision.model,
+            estimated_usd=original_cost,
+            confidence=0.85,
+            optimization_applied=optimizations or ["none"]
+        )
+    
+    def get_savings_report(self) -> Dict[str, Any]:
+        """Generate cost savings report."""
+        total = self.savings_tracker["cache_hits"] + \
+                self.savings_tracker["downgrades"] + \
+                self.savings_tracker["provider_arbitrage"]
+        
+        total_attempts = self.cache.hit_count + self.cache.miss_count
+        cache_hit_rate = self.cache.hit_count / max(total_attempts, 1)
+        
+        return {
+            "total_optimizations": total,
+            "cache_hits": self.savings_tracker["cache_hits"],
+            "model_downgrades": self.savings_tracker["downgrades"],
+            "provider_arbitrage": self.savings_tracker["provider_arbitrage"],
+            "total_saved_usd": round(self.savings_tracker["total_saved_usd"], 4),
+            "cache_hit_rate": cache_hit_rate
+        }
+    
+    def should_batch(self, requests: list) -> bool:
+        """Determine if batching would save costs."""
+        # Batching saves 15-25% on some providers
+        return len(requests) >= 5
+
