@@ -118,3 +118,33 @@ class OmniModalConfig:
                 enabled=False
             ),
             "aws_bedrock": ProviderConfig(
+                name="aws_bedrock",
+                api_key_env="AWS_ACCESS_KEY_ID",
+                rate_limit_rps=10.0,
+                enabled=False
+            ),
+            "mistral": ProviderConfig(
+                name="mistral",
+                api_key_env="MISTRAL_API_KEY",
+                rate_limit_rps=10.0,
+                enabled=False
+            ),
+            "local": ProviderConfig(
+                name="local",
+                api_key_env="",
+                base_url="http://localhost:11434",
+                rate_limit_rps=100.0,
+                enabled=True
+            )
+        }
+
+        # Load custom weights
+        weights_path = os.getenv("OMNI_WEIGHTS_FILE", "config/provider_weights.yaml")
+        if os.path.exists(weights_path):
+            with open(weights_path) as f:
+                weights = yaml.safe_load(f)
+                # Merge weights into provider configs (simplified)
+
+        return config
+
+settings = OmniModalConfig.from_env()
