@@ -68,3 +68,67 @@ class TokenBucket:
             pipe.expire(bucket_key, 3600)
             await pipe.execute()
             
+            return True
+        except Exception:
+            # Fail-open rate limiting if redis throws errors
+            return True
+
+
+class RateLimitMiddleware(BaseHTTPMiddleware):
+    """
+    FastAPI middleware for rate limiting.
+    Supports per-user, per-IP, and per-endpoint limits.
+    """
+    
+    def __init__(
+        self,
+        app,
+        redis_client,
+        requests_per_minute: int = 60,
+        burst_size: int = 10
+    ):
+        super().__init__(app)
+        self.redis = redis_client
+        self.bucket = TokenBucket(redis_client, burst_size, requests_per_minute / 60)
+    
+    async def dispatch(self, request: Request, call_next: Callable):
+        client_id = self._get_client_id(request)
+        
+        allowed = await self.bucket.consume(client_id)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail="Rate limit exceeded. Try again later."
+            )
+        
+        response = await call_next(request)
+        response.headers["X-RateLimit-Limit"] = str(self.bucket.capacity)
+        
+        # Estimate remaining (fail-safe)
+        remaining = await self._get_remaining(client_id)
+        response.headers["X-RateLimit-Remaining"] = str(remaining)
+        
+        return response
+    
+    def _get_client_id(self, request: Request) -> str:
+        """Extract client identifier from request."""
+        api_key = request.headers.get("X-API-Key", "")
+        if api_key:
+            return f"api:{api_key}"
+        
+        forwarded = request.headers.get("X-Forwarded-For", "")
+        if forwarded:
+            return f"ip:{forwarded.split(',')[0].strip()}"
+        
+        return f"ip:{request.client.host if request.client else 'unknown'}"
+    
+    async def _get_remaining(self, client_id: str) -> int:
+        """Get remaining tokens for client."""
+        if self.redis is None:
+            return int(self.bucket.local_tokens)
+            
+        try:
+            tokens = await self.redis.hget(f"ratelimit:{client_id}", "tokens")
+            return int(float(tokens)) if tokens else self.bucket.capacity
+        except Exception:
+            return self.bucket.capacity
