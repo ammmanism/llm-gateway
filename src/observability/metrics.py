@@ -1,4 +1,4 @@
-from prometheus_client import Counter, Histogram, Gauge
+from prometheus_client import Counter, Histogram
 
 # Request metrics
 REQUESTS_TOTAL = Counter(
@@ -26,6 +26,7 @@ CACHE_SIMILARITY = Histogram("neurocache_cache_similarity_score", "Cache similar
 
 # Router metrics
 ROUTING_DECISIONS = Counter("neurocache_routing_decisions_total", "Routing decisions made", ["provider", "reason"])
+PROVIDER_FAILURES = Counter("neurocache_provider_failures_total", "Provider failures by error type", ["provider", "error_type"])
 
 # Billing metrics
 COST_USD_TOTAL = Counter("neurocache_cost_usd_total", "Total cost in USD", ["tenant_id", "provider"])

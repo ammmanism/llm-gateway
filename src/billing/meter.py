@@ -1,4 +1,4 @@
-from typing import Dict, Any, Optional
+from typing import Optional
 import asyncpg
 from src.utils.logger import get_logger
 

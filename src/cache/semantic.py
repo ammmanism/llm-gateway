@@ -5,11 +5,13 @@ import asyncpg
 import json
 import uuid
 import hashlib
+import re
 from typing import Dict, Any, Tuple, Optional
 from datetime import datetime
 from src.config import settings
 from src.utils.logger import get_logger
 from src.utils.embeddings import embedding_engine
+from src.cache.drift_detector import DriftDetector
 
 logger = get_logger(__name__)
 
@@ -31,6 +33,7 @@ class SemanticCache:
         self.id_map = {} # Maps FAISS internal IDs to entry UUIDs
         self.reverse_id_map = {} # Maps entry UUIDs to FAISS internal IDs
         self._next_internal_id = 0
+        self.drift_detector = DriftDetector()
         
     async def initialize(self):
         """Initialize connections and load index"""
@@ -58,13 +61,24 @@ class SemanticCache:
         if self.pg_pool:
             await self.pg_pool.close()
             
-    def _compute_metadata_hash(self, model: str, params: Dict[str, Any]) -> str:
+    def _compute_metadata_hash(self, model: str, params: Dict[str, Any], namespace: str) -> str:
         """Create a deterministic hash of request parameters to prevent cross-config hits"""
-        hash_dict = {"model": model, "params": params}
+        hash_dict = {"model": model, "params": params, "namespace": namespace}
         hash_str = json.dumps(hash_dict, sort_keys=True)
         return hashlib.sha256(hash_str.encode('utf-8')).hexdigest()
 
-    async def check_cache(self, text: str, model: str, params: Dict[str, Any], tenant_id: str, threshold: float = 0.92) -> Tuple[bool, Optional[Dict[str, Any]], Optional[float]]:
+    def _compute_prompt_hash(self, text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def _redact_prompt(self, text: str) -> str:
+        if not settings.CACHE_REDACTION_ENABLED:
+            return text
+        redacted = re.sub(r"[\w.+-]+@[\w-]+\.[\w.-]+", "[email]", text)
+        redacted = re.sub(r"\b(?:\d[ -]*?){13,19}\b", "[card]", redacted)
+        redacted = re.sub(r"\b\d{3}-\d{2}-\d{4}\b", "[ssn]", redacted)
+        return redacted
+
+    async def check_cache(self, text: str, model: str, params: Dict[str, Any], tenant_id: str, threshold: float = 0.92, namespace: str = "default") -> Tuple[bool, Optional[Dict[str, Any]], Optional[float]]:
         """
         Check if a semantically similar query exists in cache.
         Returns: (is_hit, cached_response, similarity_score)
@@ -75,7 +89,8 @@ class SemanticCache:
         vector = await embedding_engine.embed(text)
         vector = np.array([vector], dtype=np.float32) # Reshape for FAISS
         
-        metadata_hash = self._compute_metadata_hash(model, params)
+        metadata_hash = self._compute_metadata_hash(model, params, namespace)
+        prompt_hash = self._compute_prompt_hash(text)
         
         # 1. FAISS Search (L1)
         # Search top 5 to handle hash collisions / tenant separation manually
@@ -98,8 +113,26 @@ class SemanticCache:
             
             if cached_data_str:
                 cached_data = json.loads(cached_data_str)
-                # Verify tenant and metadata hash match
+                # Verify tenant, namespace, and metadata hash match. Exact prompt hash is stored
+                # for auditing and can short-circuit future exact-match paths.
                 if cached_data.get("tenant_id") == tenant_id and cached_data.get("metadata_hash") == metadata_hash:
+                    if cached_data.get("namespace", "default") != namespace:
+                        continue
+                    if cached_data.get("prompt_hash") and cached_data.get("prompt_hash") != prompt_hash:
+                        logger.debug("Semantic hit differs from exact prompt hash for entry %s", entry_id)
+                    if settings.CACHE_DRIFT_INVALIDATION_ENABLED:
+                        created_at_raw = cached_data.get("created_at")
+                        if created_at_raw:
+                            created_at = datetime.fromisoformat(created_at_raw)
+                            drift_score = self.drift_detector.compute_drift_score(
+                                created_at,
+                                cached_data.get("ttl_hours", settings.DEFAULT_CACHE_TTL_HOURS),
+                                cached_data.get("query_text", text),
+                            )
+                            if self.drift_detector.should_invalidate(drift_score):
+                                await self.redis_client.delete(redis_key)
+                                logger.info("Invalidated drifted cache entry %s", entry_id)
+                                continue
                     logger.info(f"Cache HIT for tenant {tenant_id}, score: {score:.4f}")
                     
                     # Update hit count asynchronously (fire and forget)
@@ -110,14 +143,16 @@ class SemanticCache:
                     
         return False, None, None
 
-    async def store_cache(self, text: str, model: str, params: Dict[str, Any], response: Dict[str, Any], tenant_id: str, provider: str, tokens_in: int, tokens_out: int, cost_usd: float, ttl_seconds: int):
+    async def store_cache(self, text: str, model: str, params: Dict[str, Any], response: Dict[str, Any], tenant_id: str, provider: str, tokens_in: int, tokens_out: int, cost_usd: float, ttl_seconds: int, namespace: str = "default"):
         """
         Store a new response in cache asynchronously (fire-and-forget).
         """
         try:
             entry_id = str(uuid.uuid4())
             vector = await embedding_engine.embed(text)
-            metadata_hash = self._compute_metadata_hash(model, params)
+            metadata_hash = self._compute_metadata_hash(model, params, namespace)
+            prompt_hash = self._compute_prompt_hash(text)
+            redacted_text = self._redact_prompt(text)
             
             # 1. Update FAISS (L1)
             faiss_id = self._next_internal_id
@@ -135,9 +170,13 @@ class SemanticCache:
             cache_payload = {
                 "id": entry_id,
                 "tenant_id": tenant_id,
+                "namespace": namespace,
                 "metadata_hash": metadata_hash,
+                "prompt_hash": prompt_hash,
+                "query_text": redacted_text,
                 "response": response,
-                "created_at": datetime.utcnow().isoformat()
+                "created_at": datetime.utcnow().isoformat(),
+                "ttl_hours": max(1, int(ttl_seconds / 3600)),
             }
             await self.redis_client.setex(redis_key, ttl_seconds, json.dumps(cache_payload))
             
@@ -150,11 +189,11 @@ class SemanticCache:
                     await conn.execute(
                         '''
                         INSERT INTO cache_entries (
-                            id, tenant_id, embedding, metadata_hash, query_text, response_text, 
+                            id, tenant_id, namespace, embedding, metadata_hash, prompt_hash, query_text, response_text,
                             model, provider, tokens_in, tokens_out, cost_usd, expires_at
-                        ) VALUES ($1, $2, $3::vector, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+                        ) VALUES ($1, $2, $3, $4::vector, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
                         ''',
-                        entry_id, tenant_id, vector.tolist(), metadata_hash, text, json.dumps(response),
+                        entry_id, tenant_id, namespace, vector.tolist(), metadata_hash, prompt_hash, redacted_text, json.dumps(response),
                         model, provider, tokens_in, tokens_out, cost_usd, expires_at
                     )
             

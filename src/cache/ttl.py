@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta
-import math
 from typing import Optional
 
 def calculate_ttl(tenant_ttl_hours: Optional[int] = None, default_ttl_hours: int = 24) -> datetime:

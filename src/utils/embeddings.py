@@ -1,7 +1,7 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import asyncio
-from typing import List, Union
+from typing import List
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)

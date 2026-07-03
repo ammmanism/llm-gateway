@@ -1,4 +1,3 @@
-import pytest
 from src.billing.meter import UsageMeter
 
 def test_savings_calculation():

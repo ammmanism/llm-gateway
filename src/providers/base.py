@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, Optional
+from typing import AsyncGenerator, Dict, Any
 from pydantic import BaseModel
 
 class CompletionResponse(BaseModel):
@@ -36,6 +36,11 @@ class BaseProvider(ABC):
         Verify provider connectivity and API key.
         """
         pass
+
+    def stream(
+        self, model: str, messages: list[Dict[str, Any]], params: Dict[str, Any]
+    ) -> AsyncGenerator[str, None]:
+        raise NotImplementedError(f"{self.name} does not support streaming yet")
         
     def calculate_cost(self, model: str, tokens_in: int, tokens_out: int) -> float:
         """Calculate the cost based on pricing matrix."""

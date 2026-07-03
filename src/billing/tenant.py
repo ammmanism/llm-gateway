@@ -4,6 +4,12 @@ from pydantic import BaseModel
 import hashlib
 import json
 
+def _row_get(row: Any, key: str, default: Any = None) -> Any:
+    try:
+        return row[key]
+    except (KeyError, TypeError):
+        return default
+
 class TenantConfig(BaseModel):
     id: str
     tier: str
@@ -13,6 +19,8 @@ class TenantConfig(BaseModel):
     alert_threshold: Optional[float]
     routing_weights: Optional[Dict[str, float]]
     allowed_models: Optional[list[str]]
+    cache_threshold: float = 0.92
+    cache_ttl_hours: int = 24
 
 class TenantManager:
     # Lua script for token bucket rate limiting
@@ -73,7 +81,7 @@ class TenantManager:
             try:
                 async with self.pg_pool.acquire() as conn:
                     row = await conn.fetchrow(
-                        "SELECT id, tier, rate_limit_rpm, rate_limit_tpm, spend_cap_usd, alert_threshold, routing_weights, allowed_models FROM tenants WHERE api_key_hash = $1 AND is_active = TRUE",
+                        "SELECT id, tier, rate_limit_rpm, rate_limit_tpm, spend_cap_usd, alert_threshold, routing_weights, allowed_models, cache_threshold, cache_ttl_hours FROM tenants WHERE api_key_hash = $1 AND is_active = TRUE",
                         api_key_hash
                     )
                     if row:
@@ -89,7 +97,9 @@ class TenantManager:
                             spend_cap_usd=float(row["spend_cap_usd"]) if row["spend_cap_usd"] is not None else None,
                             alert_threshold=float(row["alert_threshold"]) if row["alert_threshold"] is not None else None,
                             routing_weights=routing_weights,
-                            allowed_models=row["allowed_models"]
+                            allowed_models=row["allowed_models"],
+                            cache_threshold=float(_row_get(row, "cache_threshold", 0.92)),
+                            cache_ttl_hours=int(_row_get(row, "cache_ttl_hours", 24)),
                         )
                         
                         # Cache in Redis for 1 hour
@@ -139,7 +149,9 @@ class TenantManager:
         if not rpm_allowed:
             return False, rpm_remaining, "RPM limit exceeded"
         if not tpm_allowed:
-            # Revert RPM token if TPM failed (not implemented in this simplified version)
+            # Revert the RPM token consumed above when the token bucket rejects the request.
+            if self.redis is not None:
+                await self.redis.hincrbyfloat(rpm_key, "tokens", 1)  # type: ignore[misc]
             return False, rpm_remaining, "TPM limit exceeded"
             
         return True, rpm_remaining, ""

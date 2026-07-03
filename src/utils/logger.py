@@ -2,7 +2,6 @@ import logging
 from pythonjsonlogger import jsonlogger
 import sys
 from contextvars import ContextVar
-import uuid
 
 # Context variable to store request ID for logging
 request_id_var: ContextVar[str] = ContextVar("request_id", default="")

@@ -1,9 +1,8 @@
 import math
 import random
 from datetime import datetime
-from typing import Dict, Any, List, Optional
+from typing import Dict, List, Optional
 from dataclasses import dataclass
-import numpy as np
 
 @dataclass
 class CircuitBreaker:
@@ -64,6 +63,10 @@ class ProviderState:
         if self.circuit.state == "CLOSED":
             return True
         if self.circuit.state == "OPEN":
+            if not self.circuit.last_failure_at:
+                self.circuit.state = "HALF_OPEN"
+                self.circuit.success_count = 0
+                return True
             if (datetime.utcnow() - self.circuit.last_failure_at).total_seconds() > self.circuit.cooldown_seconds:
                 self.circuit.state = "HALF_OPEN"
                 self.circuit.success_count = 0
@@ -83,13 +86,15 @@ class SmartRouter:
         }
         
     def _normalize(self, value: float, all_values: List[float], invert: bool = True) -> float:
-        if not all_values: return 0.5
+        if not all_values:
+            return 0.5
         min_v, max_v = min(all_values), max(all_values)
-        if max_v == min_v: return 1.0 if invert else 0.0
+        if max_v == min_v:
+            return 1.0 if invert else 0.0
         norm = (value - min_v) / (max_v - min_v)
         return 1.0 - norm if invert else norm
 
-    def route(self, request_tokens: int, quality_threshold: float = 0.8, weights: Dict[str, float] = None) -> ProviderState:
+    def route(self, request_tokens: int, quality_threshold: float = 0.8, weights: Optional[Dict[str, float]] = None) -> ProviderState:
         if not weights:
             weights = {"cost": 0.5, "latency": 0.3, "reliability": 0.2}
             
@@ -122,6 +127,8 @@ class SmartRouter:
                 best_score = score
                 best_provider = p
                 
+        if best_provider is None:
+            raise Exception("No available providers meeting criteria")
         return best_provider
 
 smart_router = SmartRouter()

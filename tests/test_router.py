@@ -1,5 +1,4 @@
-import pytest
-from src.router.smart_router import smart_router, ProviderState, EWMATracker, CircuitBreaker
+from src.router.smart_router import smart_router, EWMATracker, CircuitBreaker
 
 def test_router_selection():
     # Force a scenario

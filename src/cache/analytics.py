@@ -1,11 +1,11 @@
 import asyncpg
-from typing import Dict, Any
+from typing import Any, Dict, List, cast
 
 async def get_cache_analytics(pg_pool: asyncpg.Pool, tenant_id: str) -> Dict[str, Any]:
     """
     Generate analytics and performance stats for the tenant's cache from PostgreSQL usage logs.
     """
-    stats = {
+    stats: Dict[str, Any] = {
         "tenant_id": tenant_id,
         "total_requests": 0,
         "cache_hits": 0,
@@ -42,7 +42,9 @@ async def get_cache_analytics(pg_pool: asyncpg.Pool, tenant_id: str) -> Dict[str
                 stats["total_requests"] = row["total_requests"]
                 stats["cache_hits"] = row["cache_hits"] or 0
                 stats["cache_misses"] = row["cache_misses"] or 0
-                stats["cache_hit_rate"] = stats["cache_hits"] / stats["total_requests"]
+                cache_hits = int(stats["cache_hits"])
+                total_requests = int(stats["total_requests"])
+                stats["cache_hit_rate"] = cache_hits / total_requests
                 stats["total_saved_usd"] = float(row["total_saved_usd"] or 0.0)
                 stats["avg_hit_latency_ms"] = float(row["avg_hit_latency"] or 0.0)
                 stats["avg_miss_latency_ms"] = float(row["avg_miss_latency"] or 0.0)
@@ -60,7 +62,8 @@ async def get_cache_analytics(pg_pool: asyncpg.Pool, tenant_id: str) -> Dict[str
             )
             
             for trow in top_rows:
-                stats["top_queries"].append({
+                top_queries = cast(List[Dict[str, Any]], stats["top_queries"])
+                top_queries.append({
                     "query": trow["query_text"],
                     "hit_count": trow["hit_count"] or 0,
                     "model": trow["model"],

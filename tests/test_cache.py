@@ -1,4 +1,3 @@
-import pytest
 from src.cache.ttl import calculate_ttl, get_ttl_seconds
 from src.cache.drift_detector import DriftDetector
 from datetime import datetime, timedelta
@@ -16,11 +15,11 @@ def test_drift_detector():
     score = detector.compute_drift_score(created_at, 24, "What is the current stock price of Apple?", 0.1)
     
     assert score > 0.7
-    assert detector.should_invalidate(score) == True
+    assert detector.should_invalidate(score)
     
     # New, consistent, non-volatile query should not drift
     created_at = datetime.utcnow()
     score = detector.compute_drift_score(created_at, 24, "What is photosynthesis?", 1.0)
     
     assert score < 0.2
-    assert detector.should_invalidate(score) == False
+    assert not detector.should_invalidate(score)

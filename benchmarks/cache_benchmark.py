@@ -1,5 +1,11 @@
 import asyncio
 import time
+import json
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 from src.cache.semantic import SemanticCache
 from src.utils.embeddings import embedding_engine
 import numpy as np
@@ -42,9 +48,17 @@ async def run_benchmark():
         
     end = time.time()
     duration = end - start
-    print(f"Total time: {duration:.4f}s")
-    print(f"Average latency per query: {(duration/num_queries)*1000:.2f}ms")
-    print(f"Throughput: {num_queries/duration:.2f} QPS")
+    report = {
+        "benchmark": "cache_vector_search",
+        "vectors": num_vectors,
+        "queries": num_queries,
+        "total_seconds": round(duration, 4),
+        "average_latency_ms": round((duration / num_queries) * 1000, 2),
+        "throughput_qps": round(num_queries / duration, 2),
+    }
+    Path("benchmarks/reports").mkdir(parents=True, exist_ok=True)
+    Path("benchmarks/reports/cache.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    print(json.dumps(report, indent=2))
 
 if __name__ == "__main__":
     asyncio.run(run_benchmark())

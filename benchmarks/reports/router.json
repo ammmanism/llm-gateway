@@ -1,0 +1,7 @@
+{
+  "benchmark": "router",
+  "routes": 10000,
+  "total_seconds": 0.1311,
+  "average_latency_ms": 0.0131,
+  "throughput_routes_per_sec": 76279.91
+}
