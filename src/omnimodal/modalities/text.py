@@ -1,48 +1,34 @@
 """
 Text Modality Adapter
-Unified interface for text generation, understanding, and code.
 """
 
 import asyncio
-from typing import List, Optional, Dict, Any
+import logging
+from typing import List, Optional, Any
 from dataclasses import dataclass
-from omnimodal.modalities.base import BaseModalityAdapter
+import openai
+import anthropic
 
-# Optional dependencies handled gracefully
-try:
-    import openai
-except ImportError:
-    openai = None
+from .base import BaseModalityAdapter, ModalityResponse
+from ..config import settings
+from ..exceptions import ProviderError
 
-try:
-    import anthropic
-except ImportError:
-    anthropic = None
-
+logger = logging.getLogger(__name__)
 
 @dataclass
-class TextResponse:
-    content: str
-    model: str
-    provider: str
-    tokens_input: int
-    tokens_output: int
-    cost: float
-    from_cache: bool = False
-    mime_type: str = "text/plain"
-
+class TextResponse(ModalityResponse):
+    tokens_input: int = 0
+    tokens_output: int = 0
 
 class TextAdapter(BaseModalityAdapter):
     """
     Adapter for text-based AI providers.
-    Supports: OpenAI (GPT-4o), Anthropic (Claude), Google (Gemini), Local (Ollama)
     """
-    
+
     def __init__(self):
         self.clients = {}
         self._init_clients()
-        
-        # Cost per 1K tokens
+
         self.pricing = {
             "gpt-4o": {"input": 0.005, "output": 0.015},
             "gpt-4-turbo": {"input": 0.01, "output": 0.03},
@@ -50,39 +36,26 @@ class TextAdapter(BaseModalityAdapter):
             "claude-3-sonnet": {"input": 0.003, "output": 0.015},
             "claude-3-haiku": {"input": 0.00025, "output": 0.00125},
             "gemini-pro": {"input": 0.0005, "output": 0.0015},
-            "llama-3-70b": {"input": 0.0, "output": 0.0},  # Local
-            "unknown": {"input": 0.0, "output": 0.0}
+            "llama-3-70b": {"input": 0.0, "output": 0.0},
+            "meta-llama/Llama-2-70b-chat-hf": {"input": 0.0001, "output": 0.0002},
+            "amazon.titan-tg1-large": {"input": 0.001, "output": 0.002},
+            "mistral-large-latest": {"input": 0.0003, "output": 0.001},
         }
-    
+
     def _init_clients(self):
-        """Initialize provider clients."""
         import os
-        if openai is not None and os.getenv("OPENAI_API_KEY"):
-            try:
-                self.clients["openai"] = openai.AsyncOpenAI()
-            except Exception:
-                pass
-        if anthropic is not None and os.getenv("ANTHROPIC_API_KEY"):
-            try:
-                self.clients["anthropic"] = anthropic.AsyncAnthropic()
-            except Exception:
-                pass
-    
-    async def generate(
-        self,
-        inputs: List[Any],
-        provider: str = "openai",
-        model: Optional[str] = None,
-        max_tokens: int = 4096,
-        temperature: float = 0.7,
-        **kwargs
-    ) -> TextResponse:
-        """
-        Generate text from text inputs.
-        """
+        if os.getenv("OPENAI_API_KEY"):
+            self.clients["openai"] = openai.AsyncOpenAI()
+        if os.getenv("ANTHROPIC_API_KEY"):
+            self.clients["anthropic"] = anthropic.AsyncAnthropic()
+        # Other clients initialized on-demand
+
+    async def generate(self, inputs: List[Any], provider: str = "openai", **kwargs) -> TextResponse:
         prompt = self._extract_prompt(inputs)
-        model = model or self._default_model(provider)
-        
+        model = kwargs.get("model") or self._default_model(provider)
+        max_tokens = kwargs.get("max_tokens", 4096)
+        temperature = kwargs.get("temperature", 0.7)
+
         if provider == "openai":
             return await self._generate_openai(prompt, model, max_tokens, temperature)
         elif provider == "anthropic":
@@ -91,123 +64,141 @@ class TextAdapter(BaseModalityAdapter):
             return await self._generate_google(prompt, model, max_tokens, temperature)
         elif provider == "local":
             return await self._generate_local(prompt, model, max_tokens, temperature)
+        elif provider == "huggingface":
+            return await self._generate_huggingface(prompt, model, max_tokens, temperature)
+        elif provider == "aws_bedrock":
+            return await self._generate_bedrock(prompt, model, max_tokens, temperature)
+        elif provider == "mistral":
+            return await self._generate_mistral(prompt, model, max_tokens, temperature)
         else:
             raise ValueError(f"Unknown provider: {provider}")
-    
-    async def _generate_openai(
-        self, prompt: str, model: str, max_tokens: int, temperature: float
-    ) -> TextResponse:
-        """Generate using OpenAI."""
+
+    async def _generate_openai(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
         client = self.clients.get("openai")
-        if client is None:
-            # Mock fallback
-            await asyncio.sleep(0.1)
+        if not client:
+            raise ProviderError("OpenAI client not initialized")
+
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            content = response.choices[0].message.content
+            tokens_in = response.usage.prompt_tokens
+            tokens_out = response.usage.completion_tokens
+            cost = (tokens_in / 1000 * self.pricing[model]["input"] +
+                    tokens_out / 1000 * self.pricing[model]["output"])
             return TextResponse(
-                content=f"[Mock OpenAI Response for prompt: {prompt[:30]}...]",
+                content=content,
+                mime_type="text/plain",
                 model=model,
                 provider="openai",
-                tokens_input=10,
-                tokens_output=20,
-                cost=0.001
+                cost=round(cost, 6),
+                tokens_input=tokens_in,
+                tokens_output=tokens_out
             )
-        
-        response = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            max_tokens=max_tokens,
-            temperature=temperature
-        )
-        
-        content = response.choices[0].message.content
-        tokens_in = response.usage.prompt_tokens
-        tokens_out = response.usage.completion_tokens
-        
-        prices = self.pricing.get(model, self.pricing["unknown"])
-        cost = (tokens_in / 1000 * prices["input"] + 
-                tokens_out / 1000 * prices["output"])
-        
-        return TextResponse(
-            content=content,
-            model=model,
-            provider="openai",
-            tokens_input=tokens_in,
-            tokens_output=tokens_out,
-            cost=round(cost, 6)
-        )
-    
-    async def _generate_anthropic(
-        self, prompt: str, model: str, max_tokens: int, temperature: float
-    ) -> TextResponse:
-        """Generate using Anthropic."""
+        except Exception as e:
+            raise ProviderError(f"OpenAI error: {e}")
+
+    async def _generate_anthropic(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
         client = self.clients.get("anthropic")
-        if client is None:
-            # Mock fallback
-            await asyncio.sleep(0.1)
+        if not client:
+            raise ProviderError("Anthropic client not initialized")
+        try:
+            response = await client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            content = response.content[0].text
+            tokens_in = response.usage.input_tokens
+            tokens_out = response.usage.output_tokens
+            cost = (tokens_in / 1000 * self.pricing[model]["input"] +
+                    tokens_out / 1000 * self.pricing[model]["output"])
             return TextResponse(
-                content=f"[Mock Anthropic Response for prompt: {prompt[:30]}...]",
+                content=content,
+                mime_type="text/plain",
                 model=model,
                 provider="anthropic",
-                tokens_input=10,
-                tokens_output=20,
-                cost=0.001
+                cost=round(cost, 6),
+                tokens_input=tokens_in,
+                tokens_output=tokens_out
             )
-        
-        response = await client.messages.create(
-            model=model,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        
-        content = response.content[0].text
-        tokens_in = response.usage.input_tokens
-        tokens_out = response.usage.output_tokens
-        
-        prices = self.pricing.get(model, self.pricing["unknown"])
-        cost = (tokens_in / 1000 * prices["input"] + 
-                tokens_out / 1000 * prices["output"])
-        
+        except Exception as e:
+            raise ProviderError(f"Anthropic error: {e}")
+
+    async def _generate_google(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for Google Generative AI
+        # In production, use google.generativeai
         return TextResponse(
-            content=content,
-            model=model,
-            provider="anthropic",
-            tokens_input=tokens_in,
-            tokens_output=tokens_out,
-            cost=round(cost, 6)
-        )
-    
-    async def _generate_google(self, prompt, model, max_tokens, temperature):
-        """Google Gemini implementation."""
-        await asyncio.sleep(0.1)
-        return TextResponse(
-            content=f"[Mock Google Gemini response for prompt: {prompt[:30]}...]",
+            content="[Google Gemini response placeholder]",
+            mime_type="text/plain",
             model=model,
             provider="google",
-            tokens_input=12,
-            tokens_output=24,
-            cost=0.0005
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
         )
-    
-    async def _generate_local(self, prompt, model, max_tokens, temperature):
-        """Local Ollama implementation."""
-        await asyncio.sleep(0.05)
+
+    async def _generate_local(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for Ollama
+        # Use httpx to call local endpoint
         return TextResponse(
-            content=f"[Mock Local Ollama response for prompt: {prompt[:30]}...]",
+            content="[Local model response placeholder]",
+            mime_type="text/plain",
             model=model,
             provider="local",
-            tokens_input=15,
-            tokens_output=30,
-            cost=0.0
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
         )
-    
-    async def generate_stream(self, inputs: List[Any], provider: str = "openai"):
-        """
-        Stream text generation for real-time applications.
-        """
+
+    async def _generate_huggingface(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for Hugging Face Inference API
+        return TextResponse(
+            content="[Hugging Face response placeholder]",
+            mime_type="text/plain",
+            model=model,
+            provider="huggingface",
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
+        )
+
+    async def _generate_bedrock(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for AWS Bedrock
+        return TextResponse(
+            content="[Bedrock response placeholder]",
+            mime_type="text/plain",
+            model=model,
+            provider="aws_bedrock",
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
+        )
+
+    async def _generate_mistral(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for Mistral API
+        return TextResponse(
+            content="[Mistral response placeholder]",
+            mime_type="text/plain",
+            model=model,
+            provider="mistral",
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
+        )
+
+    async def generate_stream(self, inputs: List[Any], provider: str = "openai", **kwargs):
         prompt = self._extract_prompt(inputs)
         client = self.clients.get(provider)
-        
-        if provider == "openai" and client is not None:
+        if not client:
+            raise ProviderError(f"{provider} client not initialized")
+
+        if provider == "openai":
             stream = await client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": prompt}],
@@ -217,59 +208,32 @@ class TextAdapter(BaseModalityAdapter):
                 if chunk.choices[0].delta.content:
                     yield chunk.choices[0].delta.content
         else:
-            # Mock streaming fallback
-            for word in f"This is a streamed response from provider {provider} for prompt: {prompt[:30]}".split():
-                await asyncio.sleep(0.05)
-                yield word + " "
-    
-    async def understand(
-        self,
-        inputs: List[Any],
-        provider: str = "openai",
-        task: str = "summarize"
-    ) -> TextResponse:
-        """
-        Text understanding tasks: summarize, classify, extract, etc.
-        """
-        prompt = self._build_understanding_prompt(inputs, task)
-        return await self.generate([{"type": "text", "content": prompt}], provider)
-    
+            # Fallback: just yield full response
+            result = await self.generate(inputs, provider=provider)
+            yield result.content
+
     def _extract_prompt(self, inputs: List[Any]) -> str:
-        """Extract text from multimodal inputs."""
         texts = []
         for inp in inputs:
             if isinstance(inp, dict) and inp.get("type") == "text":
                 texts.append(inp["content"])
             elif isinstance(inp, str):
                 texts.append(inp)
-            elif hasattr(inp, "content"):
-                texts.append(getattr(inp, "content"))
         return "\n".join(texts)
-    
-    def _build_understanding_prompt(self, inputs: List[Any], task: str) -> str:
-        """Build task-specific prompt."""
-        base = self._extract_prompt(inputs)
-        templates = {
-            "summarize": f"Summarize the following:\n\n{base}",
-            "classify": f"Classify the following:\n\n{base}",
-            "extract": f"Extract key information from:\n\n{base}",
-        }
-        return templates.get(task, base)
-    
+
     def _default_model(self, provider: str) -> str:
         defaults = {
             "openai": "gpt-4o",
             "anthropic": "claude-3-opus",
             "google": "gemini-pro",
-            "local": "llama-3-70b"
+            "local": "llama-3-70b",
+            "huggingface": "meta-llama/Llama-2-70b-chat-hf",
+            "aws_bedrock": "amazon.titan-tg1-large",
+            "mistral": "mistral-large-latest",
         }
         return defaults.get(provider, "gpt-4o")
-    
+
     async def close(self):
-        """Cleanup resources."""
         for client in self.clients.values():
             if hasattr(client, 'close'):
-                try:
-                    await client.close()
-                except Exception:
-                    pass
+                await client.close()
