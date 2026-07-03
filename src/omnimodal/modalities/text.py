@@ -48,3 +48,73 @@ class TextAdapter(BaseModalityAdapter):
             self.clients["openai"] = openai.AsyncOpenAI()
         if os.getenv("ANTHROPIC_API_KEY"):
             self.clients["anthropic"] = anthropic.AsyncAnthropic()
+        # Other clients initialized on-demand
+
+    async def generate(self, inputs: List[Any], provider: str = "openai", **kwargs) -> TextResponse:
+        prompt = self._extract_prompt(inputs)
+        model = kwargs.get("model") or self._default_model(provider)
+        max_tokens = kwargs.get("max_tokens", 4096)
+        temperature = kwargs.get("temperature", 0.7)
+
+        if provider == "openai":
+            return await self._generate_openai(prompt, model, max_tokens, temperature)
+        elif provider == "anthropic":
+            return await self._generate_anthropic(prompt, model, max_tokens, temperature)
+        elif provider == "google":
+            return await self._generate_google(prompt, model, max_tokens, temperature)
+        elif provider == "local":
+            return await self._generate_local(prompt, model, max_tokens, temperature)
+        elif provider == "huggingface":
+            return await self._generate_huggingface(prompt, model, max_tokens, temperature)
+        elif provider == "aws_bedrock":
+            return await self._generate_bedrock(prompt, model, max_tokens, temperature)
+        elif provider == "mistral":
+            return await self._generate_mistral(prompt, model, max_tokens, temperature)
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
+
+    async def _generate_openai(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        client = self.clients.get("openai")
+        if not client:
+            raise ProviderError("OpenAI client not initialized")
+
+        try:
+            response = await client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            content = response.choices[0].message.content
+            tokens_in = response.usage.prompt_tokens
+            tokens_out = response.usage.completion_tokens
+            cost = (tokens_in / 1000 * self.pricing[model]["input"] +
+                    tokens_out / 1000 * self.pricing[model]["output"])
+            return TextResponse(
+                content=content,
+                mime_type="text/plain",
+                model=model,
+                provider="openai",
+                cost=round(cost, 6),
+                tokens_input=tokens_in,
+                tokens_output=tokens_out
+            )
+        except Exception as e:
+            raise ProviderError(f"OpenAI error: {e}")
+
+    async def _generate_anthropic(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        client = self.clients.get("anthropic")
+        if not client:
+            raise ProviderError("Anthropic client not initialized")
+        try:
+            response = await client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[{"role": "user", "content": prompt}]
+            )
+            content = response.content[0].text
+            tokens_in = response.usage.input_tokens
+            tokens_out = response.usage.output_tokens
+            cost = (tokens_in / 1000 * self.pricing[model]["input"] +
+                    tokens_out / 1000 * self.pricing[model]["output"])
