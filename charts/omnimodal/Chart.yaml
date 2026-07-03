@@ -1,0 +1,14 @@
+apiVersion: v2
+name: omnimodal
+description: Helm chart for OmniModal – Unified Multimodal AI Gateway
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+keywords:
+  - ai
+  - multimodal
+  - gateway
+  - llm
+home: https://github.com/omnimodal/omnimodal
+sources:
+  - https://github.com/omnimodal/omnimodal
