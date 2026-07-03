@@ -1,23 +1,15 @@
 """
-Cost Tracker Module
-Logs real-time API request pricing.
+Cost Tracker
 """
 
-from typing import Dict
+import logging
+from typing import Dict, Any
+from .metrics import REQUEST_COST
 
+logger = logging.getLogger(__name__)
 
 class CostTracker:
-    """
-    Logs API costs per user or model requests.
-    """
-    
-    def __init__(self):
-        self.totals: Dict[str, float] = {}
-
-    def track(self, provider: str, cost: float):
-        """Add to provider cost."""
-        self.totals[provider] = self.totals.get(provider, 0.0) + cost
-
-    def get_total(self, provider: str) -> float:
-        """Get total cost logged."""
-        return self.totals.get(provider, 0.0)
+    @staticmethod
+    def track(provider: str, modality: str, cost_usd: float):
+        REQUEST_COST.labels(provider=provider, modality=modality).inc(cost_usd)
+        logger.info(f"Cost: {provider} {modality} ${cost_usd:.6f}")
