@@ -146,3 +146,43 @@ async def generate(request: GenerationRequest, req: Request):
             latency_ms=latency,
             cache_hit=result.from_cache,
             fallback_used=result.fallback_used
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"Generation failed: {str(e)}")
+
+
+@app.post("/v1/fuse")
+async def fuse(request: FusionRequest, req: Request):
+    """
+    Multimodal fusion: combine multiple inputs into a single output.
+    """
+    request_id = str(uuid.uuid4())
+    
+    # Delegate to fusion engine
+    from omnimodal.fusion.planner import FusionPlanner
+    
+    planner = FusionPlanner()
+    dag = planner.plan(request.inputs, request.output_modality, request.constraints)
+    
+    # Execute DAG
+    result = await dag.execute(req.app.state.adapters)
+    
+    return {
+        "request_id": request_id,
+        "output": result.content,
+        "stages_executed": len(dag.stages),
+        "providers_used": result.providers
+    }
+
+
+@app.post("/v1/generate/stream")
+async def generate_stream(request: GenerationRequest, req: Request):
+    """
+    Streaming generation for real-time applications.
+    """
+    adapter = req.app.state.adapters.get(request.output_modality)
+    
+    async def event_stream():
