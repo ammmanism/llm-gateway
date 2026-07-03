@@ -1,0 +1,25 @@
+# Default values for omnimodal.
+replicaCount: 2
+
+image:
+  repository: omnimodal/omnimodal
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: omnimodal.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  limits:
+    cpu: 2000m
