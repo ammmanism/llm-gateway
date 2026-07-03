@@ -48,3 +48,53 @@ class FusionPlanner:
         # Direct generation
         if len(input_modalities) == 1 and input_modalities[0] == output_modality:
             return self._plan_direct(inputs, output_modality, constraints)
+
+        # Specific fusion patterns
+        if output_modality == "video" and "image" in input_modalities:
+            return self._plan_image_to_video(inputs, constraints)
+
+        if output_modality == "text" and "video" in input_modalities:
+            return self._plan_video_to_text(inputs, constraints)
+
+        if output_modality == "multimodal":
+            return self._plan_multimodal_output(inputs, constraints)
+
+        return self._plan_generic(inputs, output_modality, constraints)
+
+    def _plan_direct(self, inputs, output_modality, constraints) -> FusionDAG:
+        adapter_map = {"text": "text", "image": "image", "audio": "audio", "video": "video"}
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="stage_1",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality=output_modality,
+                    operation="generate",
+                    adapter=adapter_map[output_modality],
+                    params={"quality": constraints.get("quality", "standard")}
+                )
+            ],
+            inputs=inputs,
+            output_modality=output_modality
+        )
+
+    def _plan_image_to_video(self, inputs, constraints) -> FusionDAG:
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="extract_image",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_image"],
+                    output_modality="image",
+                    operation="generate",
+                    adapter="image",
+                    params={"operation": "validate"}
+                ),
+                FusionStage(
+                    id="generate_video",
+                    stage_type=FusionStageType.COMBINE,
+                    inputs=["extract_image", "raw_text"],
+                    output_modality="video",
+                    operation="generate",
+                    adapter="video",
