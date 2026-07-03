@@ -58,3 +58,24 @@ class SemanticCache:
                 pass
         
         self.miss_count += 1
+        return None
+    
+    async def set(self, modality: str, prompt: str, params: dict, response: Any):
+        """Store in cache."""
+        key = self._hash_request(modality, prompt, params)
+        self.exact_cache[key] = response
+        
+        if self.redis is not None:
+            try:
+                val = json.dumps(response)
+                await self.redis.setex(key, 3600, val)
+            except Exception:
+                pass
+
+
+class CostOptimizer:
+    """
+    Reduces API costs through intelligent strategies.
+    """
+    
+    def __init__(self):
