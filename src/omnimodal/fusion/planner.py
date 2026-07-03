@@ -162,3 +162,55 @@ class FusionPlanner:
             output_modality="text"
         )
     
+    def _plan_multimodal_output(self, inputs, constraints) -> FusionDAG:
+        """Plan for generating multiple output modalities."""
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="gen_text",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="text",
+                    operation="generate",
+                    adapter="text",
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="gen_image",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="image",
+                    operation="generate",
+                    adapter="image",
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="gen_audio",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="audio",
+                    operation="generate",
+                    adapter="audio",
+                    can_parallelize=True
+                )
+            ],
+            inputs=inputs,
+            output_modality="multimodal"
+        )
+    
+    def _plan_generic(self, inputs, output_modality, constraints) -> FusionDAG:
+        """Fallback generic planner."""
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="generic_transform",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality=output_modality,
+                    operation="generate",
+                    adapter=output_modality
+                )
+            ],
+            inputs=inputs,
+            output_modality=output_modality
+        )
