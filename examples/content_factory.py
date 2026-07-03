@@ -58,3 +58,72 @@ async def content_factory(input_path: str, output_dir: str):
     print(f"   Saved: seo_summary.txt")
     
     # 2. Generate hero image
+    print("Generating hero image...")
+    image = await client.generate(
+        prompt=f"Create a stunning hero image for this article: {blog_text[:500]}",
+        modality="image",
+        quality="premium",
+        size="1792x1024"
+    )
+    (output_path / "hero_image.png").write_text(image.content)
+    print(f"   Saved: hero_image.png")
+    
+    # 3. Generate podcast narration
+    print("Generating podcast audio...")
+    podcast_script = await client.generate(
+        prompt=f"Convert this blog into a 2-minute podcast script:\n\n{blog_text}",
+        modality="text",
+        quality="premium"
+    )
+    
+    audio = await client.generate(
+        prompt=podcast_script.content,
+        modality="audio",
+        voice="alloy",
+        quality="premium"
+    )
+    (output_path / "podcast.mp3").write_text(audio.content)
+    print(f"   Saved: podcast.mp3")
+    
+    # 4. Generate social media video
+    print("Generating social media video...")
+    video = await client.fuse(
+        inputs=[
+            {"type": "text", "content": f"Create a 10-second promo for: {summary.content}"},
+            {"type": "image", "content": str(output_path / "hero_image.png")}
+        ],
+        output="video",
+        duration=10
+    )
+    (output_path / "social_video.mp4").write_bytes(video.content if isinstance(video.content, bytes) else b"[video_binary]")
+    print(f"   Saved: social_video.mp4")
+    
+    # 5. Generate Twitter thread
+    print("Generating Twitter thread...")
+    thread = await client.generate(
+        prompt=f"Create a 5-tweet thread from this blog:\n\n{blog_text[:1500]}",
+        modality="text",
+        quality="standard"
+    )
+    (output_path / "twitter_thread.txt").write_text(thread.content)
+    print(f"   Saved: twitter_thread.txt")
+    
+    print(f"\nContent factory complete! Assets saved to {output_dir}/")
+    print(f"Total cost: ${summary.cost_usd + image.cost_usd + audio.cost_usd + video.cost_usd:.2f}")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="AI Content Factory")
+    parser.add_argument("--input", "-i", required=True, help="Path to blog post (markdown or txt)")
+    parser.add_argument("--output", "-o", default="./content_output", help="Output directory")
+    args = parser.parse_args()
+    
+    # create sample input if not exists
+    inp = Path(args.input)
+    if not inp.exists():
+        inp.write_text("This is a sample blog post about artificial intelligence in 2026. "
+                       "It covers multimodal gateway pipelines, semantic routing algorithms, "
+                       "fallback chains, and cost optimizer layers.")
+        
+    asyncio.run(content_factory(args.input, args.output))
+

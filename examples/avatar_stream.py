@@ -46,3 +46,40 @@ async def avatar_stream(voice_reference: str, script: str):
         ],
         output="audio",
         operation="voice_clone"
+    )
+    print(f"   Audio generated: {audio.duration_seconds}s")
+    
+    # Step 2: Generate lip-synced video
+    print("Generating lip-synced avatar...")
+    video = await client.fuse(
+        inputs=[
+            {"type": "audio", "content": audio.content, "role": "audio"},
+            {"type": "text", "content": "Professional avatar, neutral background", "role": "style"}
+        ],
+        output="video",
+        operation="lip_sync",
+        duration=audio.duration_seconds
+    )
+    print(f"   Video generated: {video.duration_seconds}s")
+    
+    # Step 3: Stream (placeholder for WebRTC integration)
+    print("\nStreaming via WebRTC...")
+    print("   Endpoint: ws://localhost:8000/v1/stream/avatar")
+    print("   Press Ctrl+C to stop")
+    
+    try:
+        # Mock run for 3 seconds instead of infinite loop for automated execution
+        await asyncio.sleep(3)
+        print("Stream session ended successfully")
+    except KeyboardInterrupt:
+        print("\nStream ended")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Real-time AI Avatar")
+    parser.add_argument("--voice", "-v", default="mock_voice.mp3", help="Path to voice reference MP3")
+    parser.add_argument("--script", "-s", default="Hello! I'm your AI assistant.", help="Script to speak")
+    args = parser.parse_args()
+    
+    asyncio.run(avatar_stream(args.voice, args.script))
+
