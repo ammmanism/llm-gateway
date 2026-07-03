@@ -134,3 +134,27 @@ class SemanticRouter:
                 0.2 * (1 - min(latency / 5000, 1)) +  # Lower latency = higher score
                 0.1 * reliability
             )
+            
+            scored.append((provider, score, quality_score, cost, latency))
+        
+        # Select best
+        scored.sort(key=lambda x: x[1], reverse=True)
+        best = scored[0]
+        
+        return RouteDecision(
+            provider=best[0],
+            model=self._default_model(best[0], modality),
+            estimated_cost=best[3],
+            estimated_latency_ms=best[4],
+            quality_score=best[2],
+            confidence=best[1]
+        )
+    
+    def _get_candidates(self, modality: str, ignore_quality: bool = False) -> List[str]:
+        """Get providers supporting this modality."""
+        if modality not in ["text", "image", "audio", "video"]:
+            return []
+        candidates = []
+        for provider, scores in self.quality_matrix.items():
+            if scores.get(modality, 0) > 0 or ignore_quality:
+                # Check circuit breaker
