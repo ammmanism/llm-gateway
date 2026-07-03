@@ -211,3 +211,65 @@ class TextAdapter(BaseModalityAdapter):
             stream = await client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": prompt}],
+                stream=True
+            )
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        else:
+            # Mock streaming fallback
+            for word in f"This is a streamed response from provider {provider} for prompt: {prompt[:30]}".split():
+                await asyncio.sleep(0.05)
+                yield word + " "
+    
+    async def understand(
+        self,
+        inputs: List[Any],
+        provider: str = "openai",
+        task: str = "summarize"
+    ) -> TextResponse:
+        """
+        Text understanding tasks: summarize, classify, extract, etc.
+        """
+        prompt = self._build_understanding_prompt(inputs, task)
+        return await self.generate([{"type": "text", "content": prompt}], provider)
+    
+    def _extract_prompt(self, inputs: List[Any]) -> str:
+        """Extract text from multimodal inputs."""
+        texts = []
+        for inp in inputs:
+            if isinstance(inp, dict) and inp.get("type") == "text":
+                texts.append(inp["content"])
+            elif isinstance(inp, str):
+                texts.append(inp)
+            elif hasattr(inp, "content"):
+                texts.append(getattr(inp, "content"))
+        return "\n".join(texts)
+    
+    def _build_understanding_prompt(self, inputs: List[Any], task: str) -> str:
+        """Build task-specific prompt."""
+        base = self._extract_prompt(inputs)
+        templates = {
+            "summarize": f"Summarize the following:\n\n{base}",
+            "classify": f"Classify the following:\n\n{base}",
+            "extract": f"Extract key information from:\n\n{base}",
+        }
+        return templates.get(task, base)
+    
+    def _default_model(self, provider: str) -> str:
+        defaults = {
+            "openai": "gpt-4o",
+            "anthropic": "claude-3-opus",
+            "google": "gemini-pro",
+            "local": "llama-3-70b"
+        }
+        return defaults.get(provider, "gpt-4o")
+    
+    async def close(self):
+        """Cleanup resources."""
+        for client in self.clients.values():
+            if hasattr(client, 'close'):
+                try:
+                    await client.close()
+                except Exception:
+                    pass
