@@ -94,3 +94,46 @@ class FallbackChain:
     """
     Orchestrates fallback across multiple providers.
     """
+    
+    def __init__(self):
+        self.circuit_breakers: Dict[str, CircuitBreaker] = {}
+        self.fallback_chains = {
+            "openai": ["openai", "anthropic", "google", "local"],
+            "anthropic": ["anthropic", "openai", "google", "local"],
+            "google": ["google", "openai", "local"],
+            "replicate": ["replicate", "google", "local"],
+            "stability": ["stability", "openai", "local"],
+            "local": ["local"],
+        }
+        self.degradation_map = {
+            "video": "image",  # If video fails, return keyframes as images
+            "image": "text",   # If image fails, return text description
+        }
+    
+    def _get_circuit(self, provider: str) -> CircuitBreaker:
+        """Get or create circuit breaker for provider."""
+        if provider not in self.circuit_breakers:
+            self.circuit_breakers[provider] = CircuitBreaker()
+        return self.circuit_breakers[provider]
+    
+    async def execute(
+        self,
+        primary: Any,
+        operation: Callable,
+        max_attempts: int = 3,
+        timeout: float = 30.0
+    ) -> FallbackResult:
+        """
+        Execute operation with fallback chain.
+        """
+        providers = self.fallback_chains.get(primary.provider, [primary.provider])
+        start_time = time.time()
+        
+        last_error = None
+        for attempt, provider in enumerate(providers[:max_attempts]):
+            circuit = self._get_circuit(provider)
+            
+            if not circuit.can_execute():
+                continue  # Skip if circuit is open
+            
+            try:
