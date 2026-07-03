@@ -98,3 +98,46 @@ class AudioAdapter(BaseModalityAdapter):
                     speed=speed
                 )
                 audio_bytes = await response.aread()
+                audio_b64 = base64.b64encode(audio_bytes).decode()
+                cost = len(text) / 1000 * self.pricing[model]["per_1k_chars"]
+                duration = len(text) / 15  # approximate speech rate
+                return AudioResponse(
+                    content=audio_b64,
+                    mime_type="audio/mp3",
+                    model=model,
+                    provider="openai",
+                    cost=round(cost, 6),
+                    duration_seconds=duration
+                )
+            except Exception as e:
+                raise ProviderError(f"OpenAI TTS error: {e}")
+        raise ValueError(f"Synthesis not supported for {provider}")
+
+    async def clone_voice(self, reference_audio: str, text: str, provider: str = "elevenlabs") -> AudioResponse:
+        # Placeholder for ElevenLabs
+        return AudioResponse(
+            content="[cloned_voice_audio_base64]",
+            mime_type="audio/mp3",
+            model="elevenlabs-v2",
+            provider="elevenlabs",
+            cost=0.05,
+            duration_seconds=len(text) / 15
+        )
+
+    async def generate_stream(self, inputs: List[Any], **kwargs):
+        # For streaming, yield chunks of audio (simplified)
+        result = await self.generate(inputs, **kwargs)
+        yield result.content
+
+    def _extract_prompt(self, inputs: List[Any]) -> str:
+        for inp in inputs:
+            if isinstance(inp, dict) and inp.get("type") == "text":
+                return inp["content"]
+            elif isinstance(inp, str):
+                return inp
+        return ""
+
+    async def close(self):
+        for client in self.clients.values():
+            if hasattr(client, 'close'):
+                await client.close()
