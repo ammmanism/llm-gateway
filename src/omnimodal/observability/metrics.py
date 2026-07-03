@@ -49,3 +49,40 @@ CACHE_MISS_COUNTER = Counter(
     "Cache misses by type",
     ["cache_type"]
 )
+
+# ---------------------------------------------
+# Provider Health
+# ---------------------------------------------
+
+PROVIDER_HEALTH = Gauge(
+    "omnimodal_provider_health",
+    "Provider health status (1=healthy, 0=unhealthy)",
+    ["provider"]
+)
+
+CIRCUIT_BREAKER_STATE = Gauge(
+    "omnimodal_circuit_breaker_state",
+    "Circuit breaker state (0=closed, 1=half-open, 2=open)",
+    ["provider"]
+)
+
+# ---------------------------------------------
+# Queue Metrics
+# ---------------------------------------------
+
+QUEUE_SIZE = Gauge(
+    "omnimodal_queue_size",
+    "Current queue size by job type",
+    ["job_type"]
+)
+
+QUEUE_LATENCY = Histogram(
+    "omnimodal_queue_wait_seconds",
+    "Time spent waiting in queue",
+    ["job_type"]
+)
+
+# ---------------------------------------------
+# Decorators
+# ---------------------------------------------
+
