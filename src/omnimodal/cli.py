@@ -73,3 +73,76 @@ class MockOmniClient:
         }
 
 
+@click.group()
+@click.version_option(version=settings.version, prog_name="omni")
+@click.option("--api-key", envvar="OMNI_API_KEY", help="OmniModal API key")
+@click.option("--verbose", "-v", is_flag=True, help="Verbose output")
+@click.pass_context
+def cli(ctx, api_key, verbose):
+    """OmniModal CLI - One command for every AI modality."""
+    ctx.ensure_object(dict)
+    ctx.obj["api_key"] = api_key
+    ctx.obj["verbose"] = verbose
+    
+    if verbose:
+        structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(10))
+
+
+@cli.command()
+@click.argument("prompt")
+@click.option("--modality", "-m", type=click.Choice(["text", "image", "audio", "video"]), default="text")
+@click.option("--quality", "-q", type=click.Choice(["draft", "standard", "premium", "enterprise"]), default="standard")
+@click.option("--output", "-o", type=click.Path(), help="Output file path")
+@click.option("--max-cost", type=float, help="Maximum cost in USD")
+@click.pass_context
+def generate(ctx, prompt, modality, quality, output, max_cost):
+    """Generate content from a prompt."""
+    async def _generate():
+        client = MockOmniClient(api_key=ctx.obj["api_key"])
+        
+        with click.progressbar(length=1, label=f"Generating {modality}...") as bar:
+            result = await client.generate(
+                prompt=prompt,
+                modality=modality,
+                quality=quality,
+                max_cost_usd=max_cost
+            )
+            bar.update(1)
+        
+        if output:
+            Path(output).write_bytes(result.content if isinstance(result.content, bytes) else result.content.encode())
+            click.echo(f"Success: Saved to {output}")
+        else:
+            click.echo(result.content)
+        
+        click.echo(f"Cost: ${result.cost_usd:.4f} | Latency: {result.latency_ms}ms")
+    
+    asyncio.run(_generate())
+
+
+@cli.command()
+@click.argument("audio_file", type=click.Path(exists=True))
+@click.option("--language", "-l", help="Language code (e.g., en, es)")
+@click.option("--output", "-o", type=click.Path(), help="Output JSON file")
+@click.pass_context
+def transcribe(ctx, audio_file, language, output):
+    """Transcribe audio to text."""
+    async def _transcribe():
+        client = MockOmniClient(api_key=ctx.obj["api_key"])
+        
+        with open(audio_file, "rb") as f:
+            audio_data = f.read()
+        
+        click.echo("Transcribing...")
+        result = await client.transcribe(audio_data, language=language)
+        
+        output_data = {
+            "text": result.content,
+            "provider": "openai",
+            "cost": result.cost_usd
+        }
+        
+        if output:
+            Path(output).write_text(json.dumps(output_data, indent=2))
+            click.echo(f"Success: Saved to {output}")
+        else:
