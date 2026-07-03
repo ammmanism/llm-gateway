@@ -1,23 +1,36 @@
 """
 Provider Registry
-Maintains list of available provider configurations.
 """
 
-from typing import Dict, Any
-
+from typing import Dict, Type
+from .openai import OpenAIProvider
+from .anthropic import AnthropicProvider
+from .google import GoogleProvider
+from .stability import StabilityProvider
+from .replicate import ReplicateProvider
+from .huggingface import HuggingFaceProvider
+from .aws_bedrock import AWSBedrockProvider
+from .mistral import MistralProvider
+from .local import LocalProvider
 
 class ProviderRegistry:
-    """
-    Registry for modality adapters and providers.
-    """
-    
-    def __init__(self):
-        self.providers: Dict[str, Any] = {}
+    _providers = {}
 
-    def register(self, provider: Any):
-        """Register a provider adapter."""
-        self.providers[provider.name] = provider
+    @classmethod
+    def register(cls, name: str, provider_class: Type):
+        cls._providers[name] = provider_class
 
-    def get(self, name: str) -> Any:
-        """Retrieve registered provider."""
-        return self.providers.get(name)
+    @classmethod
+    def get(cls, name: str):
+        return cls._providers.get(name)
+
+# Auto-register
+ProviderRegistry.register("openai", OpenAIProvider)
+ProviderRegistry.register("anthropic", AnthropicProvider)
+ProviderRegistry.register("google", GoogleProvider)
+ProviderRegistry.register("stability", StabilityProvider)
+ProviderRegistry.register("replicate", ReplicateProvider)
+ProviderRegistry.register("huggingface", HuggingFaceProvider)
+ProviderRegistry.register("aws_bedrock", AWSBedrockProvider)
+ProviderRegistry.register("mistral", MistralProvider)
+ProviderRegistry.register("local", LocalProvider)
