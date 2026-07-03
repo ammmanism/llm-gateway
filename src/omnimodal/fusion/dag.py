@@ -48,3 +48,48 @@ class FusionDAG:
                     current_group.append(stage)
                 else:
                     if current_group:
+                        parallel_groups.append(current_group)
+                    current_group = [stage]
+            if current_group:
+                parallel_groups.append(current_group)
+
+            for group in parallel_groups:
+                if len(group) == 1:
+                    results[group[0].id] = await self._execute_stage(group[0], adapters, results)
+                    completed.add(group[0].id)
+                else:
+                    tasks = [self._execute_stage(stage, adapters, results) for stage in group]
+                    stage_results = await asyncio.gather(*tasks)
+                    for stage, result in zip(group, stage_results):
+                        results[stage.id] = result
+                        completed.add(stage.id)
+
+        final_stage = [s for s in self.stages if s.output_modality == self.output_modality][-1]
+        return {
+            "content": results[final_stage.id],
+            "stages_executed": len(self.stages),
+            "providers": list(set(r.get("provider", "unknown") for r in results.values() if isinstance(r, dict)))
+        }
+
+    async def _execute_stage(self, stage: FusionStage, adapters: Dict, prior_results: Dict) -> Any:
+        adapter = adapters.get(stage.adapter)
+        if not adapter:
+            raise ValueError(f"Unknown adapter: {stage.adapter}")
+
+        resolved_inputs = []
+        for inp in stage.inputs:
+            if inp in prior_results:
+                resolved_inputs.append(prior_results[inp])
+            else:
+                resolved_inputs.append(inp)
+
+        if stage.operation == "generate":
+            return await adapter.generate(resolved_inputs, **stage.params)
+        elif stage.operation == "edit":
+            return await adapter.edit(*resolved_inputs, **stage.params)
+        elif stage.operation == "understand":
+            return await adapter.understand(*resolved_inputs, **stage.params)
+        elif stage.operation == "transcribe":
+            return await adapter.transcribe(*resolved_inputs, **stage.params)
+        else:
+            raise ValueError(f"Unknown operation: {stage.operation}")
