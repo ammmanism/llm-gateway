@@ -98,3 +98,76 @@ class ImageAdapter(BaseModalityAdapter):
             cost=0.01,
             width=1024,
             height=1024
+        )
+
+    async def edit(self, image: str, mask: Optional[str], prompt: str, provider: str = "openai") -> ImageResponse:
+        if provider == "openai":
+            client = self.clients.get("openai")
+            if not client:
+                raise ProviderError("OpenAI client not initialized")
+            try:
+                response = await client.images.edit(
+                    image=io.BytesIO(base64.b64decode(image)),
+                    mask=io.BytesIO(base64.b64decode(mask)) if mask else None,
+                    prompt=prompt,
+                    n=1,
+                    size="1024x1024"
+                )
+                # Parse response...
+                return ImageResponse(
+                    content=response.data[0].b64_json,
+                    mime_type="image/png",
+                    model="dall-e-2",
+                    provider="openai",
+                    cost=0.02,
+                    width=1024,
+                    height=1024
+                )
+            except Exception as e:
+                raise ProviderError(f"OpenAI edit error: {e}")
+        raise ValueError("Edit not supported for provider")
+
+    async def generate_stream(self, inputs: List[Any], **kwargs):
+        # Images are not streamed in chunks; yield whole image
+        result = await self.generate(inputs, **kwargs)
+        yield result.content
+
+    async def understand(self, image: str, prompt: str, provider: str = "openai") -> str:
+        if provider == "openai":
+            client = self.clients.get("openai")
+            if not client:
+                raise ProviderError("OpenAI client not initialized")
+            try:
+                response = await client.chat.completions.create(
+                    model="gpt-4o",
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {"type": "text", "text": prompt},
+                                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image}"}}
+                            ]
+                        }
+                    ]
+                )
+                return response.choices[0].message.content
+            except Exception as e:
+                raise ProviderError(f"OpenAI vision error: {e}")
+        return "[Image understanding not available]"
+
+    def _extract_prompt(self, inputs: List[Any]) -> str:
+        for inp in inputs:
+            if isinstance(inp, dict) and inp.get("type") == "text":
+                return inp["content"]
+            elif isinstance(inp, str):
+                return inp
+        return "Generate an image"
+
+    def _default_model(self, provider: str) -> str:
+        defaults = {"openai": "dall-e-3", "stability": "stable-diffusion-3"}
+        return defaults.get(provider, "dall-e-3")
+
+    async def close(self):
+        for client in self.clients.values():
+            if hasattr(client, 'close'):
+                await client.close()
