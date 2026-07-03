@@ -68,3 +68,31 @@ class FusionPlanner:
                     output_modality=output_modality,
                     operation="generate",
                     adapter=adapter_map.get(output_modality, "text"),
+                    params={"quality": constraints.get("quality", "standard")}
+                )
+            ],
+            inputs=inputs,
+            output_modality=output_modality
+        )
+    
+    def _plan_image_to_video(self, inputs, constraints) -> FusionDAG:
+        """Plan: Image + Text -> Video."""
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="extract_image",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_image"],
+                    output_modality="image",
+                    operation="generate",
+                    adapter="image",
+                    params={"operation": "validate"}
+                ),
+                FusionStage(
+                    id="generate_video",
+                    stage_type=FusionStageType.COMBINE,
+                    inputs=["extract_image", "raw_text"],
+                    output_modality="video",
+                    operation="generate",
+                    adapter="video",
+                    params={
