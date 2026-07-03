@@ -1,16 +1,15 @@
 """
 OmniModal Configuration
-Production-grade settings with environment-based overrides.
 """
 
+import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
-import os
-
+import yaml
+import json
 
 @dataclass
 class ProviderConfig:
-    """Configuration for a single AI provider."""
     name: str
     api_key_env: str
     base_url: Optional[str] = None
@@ -20,15 +19,13 @@ class ProviderConfig:
     enabled: bool = True
     regions: List[str] = field(default_factory=lambda: ["us-east"])
     cost_model: Dict = field(default_factory=dict)
-    
+
     @property
     def api_key(self) -> str:
         return os.getenv(self.api_key_env, "")
 
-
 @dataclass
 class CacheConfig:
-    """Two-tier caching configuration."""
     semantic_cache_url: str = "redis://localhost:6379/0"
     vector_cache_url: str = "redis://localhost:6379/1"
     semantic_ttl_seconds: int = 3600
@@ -36,10 +33,8 @@ class CacheConfig:
     similarity_threshold: float = 0.95
     max_entries: int = 100000
 
-
 @dataclass
 class RoutingConfig:
-    """Routing and optimization settings."""
     default_quality_threshold: float = 0.7
     default_latency_budget_ms: int = 5000
     enable_cost_optimization: bool = True
@@ -50,10 +45,8 @@ class RoutingConfig:
     circuit_breaker_timeout_seconds: int = 30
     enable_bulkhead: bool = True
 
-
 @dataclass
 class ObservabilityConfig:
-    """Metrics and tracing configuration."""
     enable_opentelemetry: bool = True
     jaeger_endpoint: Optional[str] = None
     prometheus_port: int = 9090
@@ -61,31 +54,35 @@ class ObservabilityConfig:
     enable_cost_tracking: bool = True
     enable_latency_histograms: bool = True
 
+@dataclass
+class SecurityConfig:
+    pii_redaction_enabled: bool = True
+    rbac_enabled: bool = True
+    rbac_policy_file: str = "config/rbac_policies.json"
+    audit_log_enabled: bool = True
+    audit_log_backend: str = "console"  # console, elasticsearch, cloudtrail
 
 @dataclass
 class OmniModalConfig:
-    """Master configuration."""
     app_name: str = "omnimodal"
     version: str = "1.0.0"
     debug: bool = False
-    
-    # Sub-configs
+
     providers: Dict[str, ProviderConfig] = field(default_factory=dict)
     cache: CacheConfig = field(default_factory=CacheConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     observability: ObservabilityConfig = field(default_factory=ObservabilityConfig)
-    
-    # Fusion
+    security: SecurityConfig = field(default_factory=SecurityConfig)
+
     fusion_max_stages: int = 10
     fusion_timeout_seconds: float = 300.0
     enable_streaming_fusion: bool = True
-    
+
     @classmethod
     def from_env(cls) -> "OmniModalConfig":
-        """Load configuration from environment variables."""
         config = cls()
-        
-        # Provider configs
+
+        # Providers
         config.providers = {
             "openai": ProviderConfig(
                 name="openai",
@@ -114,17 +111,40 @@ class OmniModalConfig:
                 api_key_env="REPLICATE_API_TOKEN",
                 rate_limit_rps=5.0
             ),
+            "huggingface": ProviderConfig(
+                name="huggingface",
+                api_key_env="HF_TOKEN",
+                rate_limit_rps=5.0,
+                enabled=False
+            ),
+            "aws_bedrock": ProviderConfig(
+                name="aws_bedrock",
+                api_key_env="AWS_ACCESS_KEY_ID",
+                rate_limit_rps=10.0,
+                enabled=False
+            ),
+            "mistral": ProviderConfig(
+                name="mistral",
+                api_key_env="MISTRAL_API_KEY",
+                rate_limit_rps=10.0,
+                enabled=False
+            ),
             "local": ProviderConfig(
                 name="local",
                 api_key_env="",
-                base_url="http://localhost:11434",  # Ollama
+                base_url="http://localhost:11434",
                 rate_limit_rps=100.0,
-                enabled=False  # Opt-in
+                enabled=True
             )
         }
-        
+
+        # Load custom weights
+        weights_path = os.getenv("OMNI_WEIGHTS_FILE", "config/provider_weights.yaml")
+        if os.path.exists(weights_path):
+            with open(weights_path) as f:
+                weights = yaml.safe_load(f)
+                # Merge weights into provider configs (simplified)
+
         return config
 
-
-# Global config instance
 settings = OmniModalConfig.from_env()
