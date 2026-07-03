@@ -48,3 +48,53 @@ class VideoAdapter(BaseModalityAdapter):
         height = kwargs.get("height", 576)
         fps = kwargs.get("fps", 24)
 
+        if provider == "replicate":
+            return await self._generate_replicate(prompt, model, duration, width, height, fps, inputs)
+        elif provider == "google":
+            return await self._generate_google(prompt, model, duration, width, height, fps)
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
+
+    async def _generate_replicate(self, prompt: str, model: str, duration: int, width: int, height: int, fps: int, inputs: List[Any]) -> VideoResponse:
+        client = self.clients.get("replicate")
+        if not client:
+            raise ProviderError("Replicate client not initialized")
+
+        # Check for image input
+        image_input = None
+        for inp in inputs:
+            if isinstance(inp, dict) and inp.get("type") == "image":
+                image_input = inp["content"]
+
+        try:
+            if image_input:
+                output = client.run(
+                    model,
+                    input={
+                        "image": image_input,
+                        "motion_bucket_id": 127,
+                        "noise_aug_strength": 0.02,
+                        "frames": duration * fps
+                    }
+                )
+            else:
+                output = client.run(
+                    model,
+                    input={"prompt": prompt, "num_frames": duration * fps}
+                )
+            video_url = output if isinstance(output, str) else output[0]
+            cost = self.pricing.get(model, {}).get("per_4s", 0.05) * (duration / 4)
+            return VideoResponse(
+                content=video_url,
+                mime_type="video/mp4",
+                model=model,
+                provider="replicate",
+                cost=round(cost, 4),
+                duration_seconds=duration,
+                width=width,
+                height=height,
+                fps=fps
+            )
+        except Exception as e:
+            raise ProviderError(f"Replicate video error: {e}")
+
