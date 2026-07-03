@@ -78,3 +78,43 @@ class OmniModalConfig:
     fusion_timeout_seconds: float = 300.0
     enable_streaming_fusion: bool = True
 
+    @classmethod
+    def from_env(cls) -> "OmniModalConfig":
+        config = cls()
+
+        # Providers
+        config.providers = {
+            "openai": ProviderConfig(
+                name="openai",
+                api_key_env="OPENAI_API_KEY",
+                rate_limit_rps=50.0,
+                cost_model={"gpt-4o": {"input": 0.005, "output": 0.015}}
+            ),
+            "anthropic": ProviderConfig(
+                name="anthropic",
+                api_key_env="ANTHROPIC_API_KEY",
+                rate_limit_rps=20.0,
+                cost_model={"claude-3-opus": {"input": 0.015, "output": 0.075}}
+            ),
+            "google": ProviderConfig(
+                name="google",
+                api_key_env="GOOGLE_API_KEY",
+                rate_limit_rps=30.0
+            ),
+            "stability": ProviderConfig(
+                name="stability",
+                api_key_env="STABILITY_API_KEY",
+                rate_limit_rps=10.0
+            ),
+            "replicate": ProviderConfig(
+                name="replicate",
+                api_key_env="REPLICATE_API_TOKEN",
+                rate_limit_rps=5.0
+            ),
+            "huggingface": ProviderConfig(
+                name="huggingface",
+                api_key_env="HF_TOKEN",
+                rate_limit_rps=5.0,
+                enabled=False
+            ),
+            "aws_bedrock": ProviderConfig(
