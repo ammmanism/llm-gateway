@@ -51,3 +51,69 @@ class TextAdapter(BaseModalityAdapter):
             "claude-3-haiku": {"input": 0.00025, "output": 0.00125},
             "gemini-pro": {"input": 0.0005, "output": 0.0015},
             "llama-3-70b": {"input": 0.0, "output": 0.0},  # Local
+            "unknown": {"input": 0.0, "output": 0.0}
+        }
+    
+    def _init_clients(self):
+        """Initialize provider clients."""
+        import os
+        if openai is not None and os.getenv("OPENAI_API_KEY"):
+            try:
+                self.clients["openai"] = openai.AsyncOpenAI()
+            except Exception:
+                pass
+        if anthropic is not None and os.getenv("ANTHROPIC_API_KEY"):
+            try:
+                self.clients["anthropic"] = anthropic.AsyncAnthropic()
+            except Exception:
+                pass
+    
+    async def generate(
+        self,
+        inputs: List[Any],
+        provider: str = "openai",
+        model: Optional[str] = None,
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+        **kwargs
+    ) -> TextResponse:
+        """
+        Generate text from text inputs.
+        """
+        prompt = self._extract_prompt(inputs)
+        model = model or self._default_model(provider)
+        
+        if provider == "openai":
+            return await self._generate_openai(prompt, model, max_tokens, temperature)
+        elif provider == "anthropic":
+            return await self._generate_anthropic(prompt, model, max_tokens, temperature)
+        elif provider == "google":
+            return await self._generate_google(prompt, model, max_tokens, temperature)
+        elif provider == "local":
+            return await self._generate_local(prompt, model, max_tokens, temperature)
+        else:
+            raise ValueError(f"Unknown provider: {provider}")
+    
+    async def _generate_openai(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
+        """Generate using OpenAI."""
+        client = self.clients.get("openai")
+        if client is None:
+            # Mock fallback
+            await asyncio.sleep(0.1)
+            return TextResponse(
+                content=f"[Mock OpenAI Response for prompt: {prompt[:30]}...]",
+                model=model,
+                provider="openai",
+                tokens_input=10,
+                tokens_output=20,
+                cost=0.001
+            )
+        
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=max_tokens,
+            temperature=temperature
+        )
