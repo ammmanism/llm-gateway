@@ -98,3 +98,17 @@ jobs:
         with:
           context: .
           push: false
+          tags: omnimodal:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ─────────────────────────────────────────────
+  # Security Scan
+  # ─────────────────────────────────────────────
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pypa/gh-action-pip-audit@v1.0.8
+        with:
+          inputs: requirements.txt
