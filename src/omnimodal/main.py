@@ -127,3 +127,22 @@ async def generate(request: GenerationRequest, req: Request):
             cost_budget=request.max_cost_usd,
             latency_budget=request.max_latency_ms
         )
+        
+        # Execute with fallback
+        result = await req.app.state.fallback.execute(
+            primary=route,
+            operation=lambda r: adapter.generate(request.inputs, r),
+            max_attempts=settings.routing.fallback_max_attempts
+        )
+        
+        latency = int((asyncio.get_event_loop().time() - start_time) * 1000)
+        
+        return GenerationResponse(
+            request_id=request_id,
+            content=result.content,
+            content_type=result.mime_type,
+            provider_used=result.provider,
+            cost_usd=result.cost,
+            latency_ms=latency,
+            cache_hit=result.from_cache,
+            fallback_used=result.fallback_used
