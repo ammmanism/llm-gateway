@@ -86,3 +86,17 @@ QUEUE_LATENCY = Histogram(
 # Decorators
 # ---------------------------------------------
 
+def track_request(modality: str, provider: str, operation: str = "generate"):
+    """Decorator to track request metrics."""
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            start = time.time()
+            status = "success"
+            fallback = "false"
+            
+            try:
+                result = await func(*args, **kwargs)
+                if getattr(result, "fallback_used", False):
+                    fallback = "true"
+                return result
