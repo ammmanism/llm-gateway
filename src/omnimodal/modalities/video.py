@@ -98,3 +98,39 @@ class VideoAdapter(BaseModalityAdapter):
         except Exception as e:
             raise ProviderError(f"Replicate video error: {e}")
 
+    async def _generate_google(self, prompt: str, model: str, duration: int, width: int, height: int, fps: int) -> VideoResponse:
+        # Placeholder for Google Video Generation (if available)
+        return VideoResponse(
+            content="https://example.com/video.mp4",
+            mime_type="video/mp4",
+            model=model,
+            provider="google",
+            cost=0.10,
+            duration_seconds=duration,
+            width=width,
+            height=height,
+            fps=fps
+        )
+
+    async def generate_stream(self, inputs: List[Any], **kwargs):
+        # Video streaming not supported yet; yield full video
+        result = await self.generate(inputs, **kwargs)
+        yield result.content
+
+    def _extract_prompt(self, inputs: List[Any]) -> str:
+        for inp in inputs:
+            if isinstance(inp, dict) and inp.get("type") == "text":
+                return inp["content"]
+            elif isinstance(inp, str):
+                return inp
+        return "Generate a video"
+
+    def _default_model(self, provider: str) -> str:
+        defaults = {
+            "replicate": "stability-ai/stable-video-diffusion",
+            "google": "gemini-pro-vision"
+        }
+        return defaults.get(provider, "stability-ai/stable-video-diffusion")
+
+    async def close(self):
+        pass
