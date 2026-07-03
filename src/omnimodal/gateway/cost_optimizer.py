@@ -1,85 +1,35 @@
 """
 Cost Optimizer
-Minimizes spend while maintaining quality through caching,
-model downgrading, and provider arbitrage.
 """
 
 import hashlib
 import json
 import time
+import logging
 from dataclasses import dataclass
 from typing import Optional, Dict, Any
-from functools import lru_cache
 
+from ..config import settings
+from ..cache.multi_level import MultiLevelCache
+from ..exceptions import CacheError
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class CostEstimate:
     provider: str
     model: str
     estimated_usd: float
-    confidence: float  # 0-1, how confident we are in the estimate
-    optimization_applied: list[str]  # List of optimizations used
-
-
-class SemanticCache:
-    """
-    Two-tier cache: exact match + vector similarity.
-    """
-    def __init__(self):
-        self.exact_cache: Dict[str, Any] = {}  # hash -> response
-        self.vector_store = {}  # embedding -> response
-        self.hit_count = 0
-        self.miss_count = 0
-        self.redis = None  # Will be mocked or initialized in tests
-    
-    def _hash_request(self, modality: str, prompt: str, params: dict) -> str:
-        """Create deterministic hash for exact matching."""
-        key = f"{modality}:{prompt}:{json.dumps(params, sort_keys=True)}"
-        return hashlib.sha256(key.encode()).hexdigest()
-    
-    async def get(self, modality: str, prompt: str, params: dict) -> Optional[Any]:
-        """Check cache with exact match first, then semantic similarity."""
-        key = self._hash_request(modality, prompt, params)
-        
-        # Tier 1: Local cache check (useful for testing & quick replies)
-        if key in self.exact_cache:
-            self.hit_count += 1
-            return self.exact_cache[key]
-            
-        # Try redis backend if set
-        if self.redis is not None:
-            try:
-                res = await self.redis.get(key)
-                if res:
-                    self.hit_count += 1
-                    # Handle json format
-                    return json.loads(res.decode() if isinstance(res, bytes) else res)
-            except Exception:
-                pass
-        
-        self.miss_count += 1
-        return None
-    
-    async def set(self, modality: str, prompt: str, params: dict, response: Any):
-        """Store in cache."""
-        key = self._hash_request(modality, prompt, params)
-        self.exact_cache[key] = response
-        
-        if self.redis is not None:
-            try:
-                val = json.dumps(response)
-                await self.redis.setex(key, 3600, val)
-            except Exception:
-                pass
-
+    confidence: float
+    optimization_applied: list[str]
 
 class CostOptimizer:
     """
     Reduces API costs through intelligent strategies.
     """
-    
+
     def __init__(self):
-        self.cache = SemanticCache()
+        self.cache = MultiLevelCache()
         self.savings_tracker = {
             "cache_hits": 0,
             "downgrades": 0,
@@ -87,89 +37,4 @@ class CostOptimizer:
             "total_saved_usd": 0.0
         }
         self.model_downgrade_map = {
-            "gpt-4o": "claude-3-haiku",  # For simple tasks
-            "claude-3-opus": "claude-3-sonnet",
-            "dall-e-3": "stable-diffusion-3",  # For non-critical images
-        }
-    
-    async def optimize(
-        self,
-        route_decision: Any,
-        request: Any,
-        complexity: int = 5
-    ) -> CostEstimate:
-        """
-        Apply cost optimization strategies.
-        """
-        optimizations = []
-        original_cost = route_decision.estimated_cost
-        
-        # Strategy 1: Check cache
-        # Check if request has parameters or prompts
-        prompt = str(getattr(request, "inputs", request.get("inputs", "")))
-        quality = getattr(request, "quality", request.get("quality", "standard"))
-        output_modality = getattr(request, "output_modality", request.get("output_modality", "text"))
-        
-        cached = await self.cache.get(
-            output_modality,
-            prompt,
-            {"quality": quality}
-        )
-        if cached:
-            self.savings_tracker["cache_hits"] += 1
-            self.savings_tracker["total_saved_usd"] += original_cost
-            return CostEstimate(
-                provider="cache",
-                model="hit",
-                estimated_usd=0.0,
-                confidence=1.0,
-                optimization_applied=["semantic_cache"]
-            )
-        
-        # Strategy 2: Model downgrade for simple tasks
-        if complexity <= 3 and route_decision.model in self.model_downgrade_map:
-            cheaper_model = self.model_downgrade_map[route_decision.model]
-            savings = original_cost * 0.6  # ~60% savings
-            self.savings_tracker["downgrades"] += 1
-            self.savings_tracker["total_saved_usd"] += savings
-            optimizations.append("model_downgrade")
-            
-            return CostEstimate(
-                provider=route_decision.provider,
-                model=cheaper_model,
-                estimated_usd=original_cost - savings,
-                confidence=0.9,
-                optimization_applied=optimizations
-            )
-        
-        return CostEstimate(
-            provider=route_decision.provider,
-            model=route_decision.model,
-            estimated_usd=original_cost,
-            confidence=0.85,
-            optimization_applied=optimizations or ["none"]
-        )
-    
-    def get_savings_report(self) -> Dict[str, Any]:
-        """Generate cost savings report."""
-        total = self.savings_tracker["cache_hits"] + \
-                self.savings_tracker["downgrades"] + \
-                self.savings_tracker["provider_arbitrage"]
-        
-        total_attempts = self.cache.hit_count + self.cache.miss_count
-        cache_hit_rate = self.cache.hit_count / max(total_attempts, 1)
-        
-        return {
-            "total_optimizations": total,
-            "cache_hits": self.savings_tracker["cache_hits"],
-            "model_downgrades": self.savings_tracker["downgrades"],
-            "provider_arbitrage": self.savings_tracker["provider_arbitrage"],
-            "total_saved_usd": round(self.savings_tracker["total_saved_usd"], 4),
-            "cache_hit_rate": cache_hit_rate
-        }
-    
-    def should_batch(self, requests: list) -> bool:
-        """Determine if batching would save costs."""
-        # Batching saves 15-25% on some providers
-        return len(requests) >= 5
-
+            "gpt-4o": "claude-3-haiku",
