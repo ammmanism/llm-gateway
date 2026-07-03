@@ -98,3 +98,116 @@ class FusionPlanner:
                     output_modality="video",
                     operation="generate",
                     adapter="video",
+                    params={"duration": constraints.get("duration_seconds", 4)},
+                    dependencies=["extract_image"]
+                )
+            ],
+            inputs=inputs,
+            output_modality="video"
+        )
+
+    def _plan_video_to_text(self, inputs, constraints) -> FusionDAG:
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="extract_frames",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_video"],
+                    output_modality="image",
+                    operation="extract",
+                    adapter="video",
+                    params={"fps": 1}
+                ),
+                FusionStage(
+                    id="extract_audio",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_video"],
+                    output_modality="audio",
+                    operation="extract",
+                    adapter="video",
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="analyze_frames",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["extract_frames"],
+                    output_modality="text",
+                    operation="understand",
+                    adapter="image",
+                    dependencies=["extract_frames"],
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="transcribe_audio",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["extract_audio"],
+                    output_modality="text",
+                    operation="transcribe",
+                    adapter="audio",
+                    dependencies=["extract_audio"],
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="fuse_understanding",
+                    stage_type=FusionStageType.COMBINE,
+                    inputs=["analyze_frames", "transcribe_audio"],
+                    output_modality="text",
+                    operation="understand",
+                    adapter="text",
+                    dependencies=["analyze_frames", "transcribe_audio"]
+                )
+            ],
+            inputs=inputs,
+            output_modality="text"
+        )
+
+    def _plan_multimodal_output(self, inputs, constraints) -> FusionDAG:
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="gen_text",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="text",
+                    operation="generate",
+                    adapter="text",
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="gen_image",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="image",
+                    operation="generate",
+                    adapter="image",
+                    can_parallelize=True
+                ),
+                FusionStage(
+                    id="gen_audio",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality="audio",
+                    operation="generate",
+                    adapter="audio",
+                    can_parallelize=True
+                )
+            ],
+            inputs=inputs,
+            output_modality="multimodal"
+        )
+
+    def _plan_generic(self, inputs, output_modality, constraints) -> FusionDAG:
+        return FusionDAG(
+            stages=[
+                FusionStage(
+                    id="generic_transform",
+                    stage_type=FusionStageType.TRANSFORM,
+                    inputs=["raw_input"],
+                    output_modality=output_modality,
+                    operation="generate",
+                    adapter=output_modality
+                )
+            ],
+            inputs=inputs,
+            output_modality=output_modality
+        )
