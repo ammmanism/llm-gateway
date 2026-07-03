@@ -78,3 +78,37 @@ class CostOptimizer:
             return CostEstimate(
                 provider=route_decision.provider,
                 model=cheaper_model,
+                estimated_usd=original_cost - savings,
+                confidence=0.9,
+                optimization_applied=optimizations
+            )
+
+        # 3. Provider arbitrage (handled by router)
+
+        return CostEstimate(
+            provider=route_decision.provider,
+            model=route_decision.model,
+            estimated_usd=original_cost,
+            confidence=0.85,
+            optimization_applied=optimizations or ["none"]
+        )
+
+    def _cache_key(self, modality: str, prompt: str, quality: str) -> str:
+        key = f"{modality}:{prompt}:{quality}"
+        return hashlib.sha256(key.encode()).hexdigest()
+
+    def get_savings_report(self) -> Dict[str, Any]:
+        total = self.savings_tracker["cache_hits"] + \
+                self.savings_tracker["downgrades"] + \
+                self.savings_tracker["provider_arbitrage"]
+        return {
+            "total_optimizations": total,
+            "cache_hits": self.savings_tracker["cache_hits"],
+            "model_downgrades": self.savings_tracker["downgrades"],
+            "provider_arbitrage": self.savings_tracker["provider_arbitrage"],
+            "total_saved_usd": round(self.savings_tracker["total_saved_usd"], 4),
+            "cache_hit_rate": self.cache.hit_rate()
+        }
+
+    def should_batch(self, requests: list) -> bool:
+        return len(requests) >= 5
