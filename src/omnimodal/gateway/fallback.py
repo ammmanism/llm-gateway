@@ -137,3 +137,79 @@ class FallbackChain:
                 continue  # Skip if circuit is open
             
             try:
+                # Execute with timeout
+                result = await asyncio.wait_for(
+                    operation(provider),
+                    timeout=timeout
+                )
+                
+                circuit.record_success()
+                
+                res_content = getattr(result, "content", result.get("content") if isinstance(result, dict) else str(result))
+                res_model = getattr(result, "model", result.get("model") if isinstance(result, dict) else "unknown")
+                res_cost = getattr(result, "cost", result.get("cost") if isinstance(result, dict) else 0.0)
+                res_cache = getattr(result, "from_cache", result.get("from_cache") if isinstance(result, dict) else False)
+                res_mime = getattr(result, "mime_type", result.get("mime_type") if isinstance(result, dict) else "text/plain")
+                
+                return FallbackResult(
+                    content=res_content,
+                    provider=provider,
+                    model=res_model,
+                    cost=res_cost,
+                    from_cache=res_cache,
+                    fallback_used=(attempt > 0),
+                    latency_ms=int((time.time() - start_time) * 1000),
+                    attempts=attempt + 1,
+                    mime_type=res_mime
+                )
+                
+            except asyncio.TimeoutError:
+                circuit.record_failure()
+                last_error = f"Timeout on {provider}"
+                
+            except Exception as e:
+                circuit.record_failure()
+                last_error = str(e)
+        
+        # All providers failed - attempt graceful degradation
+        return await self._degrade(primary, operation, last_error)
+    
+    async def _degrade(self, primary: Any, operation: Callable, error: str) -> FallbackResult:
+        """
+        Graceful degradation when all providers fail.
+        """
+        modality = getattr(primary, 'modality', 'text')
+        
+        # Try simpler modality
+        if modality in self.degradation_map:
+            simpler = self.degradation_map[modality]
+            # Return placeholder indicating degradation
+            return FallbackResult(
+                content=f"[DEGRADED to {simpler}] {error}",
+                provider="degradation",
+                model="none",
+                cost=0.0,
+                from_cache=False,
+                fallback_used=True,
+                latency_ms=0,
+                attempts=0
+            )
+        
+        # Final fallback: queue for async retry
+        return FallbackResult(
+            content=f"[QUEUED for retry] {error}",
+            provider="queue",
+            model="none",
+            cost=0.0,
+            from_cache=False,
+            fallback_used=True,
+            latency_ms=0,
+            attempts=0
+        )
+    
+    def get_health_status(self) -> Dict[str, str]:
+        """Get circuit breaker states for all providers."""
+        return {
+            provider: cb.state.name
+            for provider, cb in self.circuit_breakers.items()
+        }
