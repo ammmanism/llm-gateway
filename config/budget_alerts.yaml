@@ -1,0 +1,16 @@
+alerts:
+  - name: "daily_spend"
+    type: "sum"
+    threshold: 100.0
+    period: "24h"
+    action: slack,email
+  - name: "project_spike"
+    type: "rate"
+    threshold: 50.0
+    period: "1h"
+    action: webhook
+  - name: "monthly_cap"
+    type: "sum"
+    threshold: 5000.0
+    period: "30d"
+    action: slack,email,webhook
