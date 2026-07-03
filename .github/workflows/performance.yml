@@ -1,0 +1,20 @@
+name: Performance Regression
+on:
+  push:
+    branches: [main]
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: make install
+      - run: make benchmark
+      - uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'pytest'
+          output-file-path: benchmark.json
+          alert-threshold: 110%
+          fail-on-alert: true
