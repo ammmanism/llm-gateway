@@ -22,3 +22,39 @@ class MockOmniClient:
             content=f"Mock generated {modality} for: {prompt[:40]}...",
             cost_usd=cost_map.get(modality, 0.01)
         )
+
+    async def fuse(self, inputs, output, duration=None):
+        return MockResult(
+            content=b"[Mock Video Binary Content]",
+            cost_usd=0.15
+        )
+
+
+async def content_factory(input_path: str, output_dir: str):
+    """
+    Transform a blog post into:
+    - SEO-optimized summary
+    - Hero image
+    - Social media video
+    - Podcast audio
+    - Twitter thread
+    """
+    client = MockOmniClient()
+    output_path = Path(output_dir)
+    output_path.mkdir(exist_ok=True)
+    
+    # Read blog post
+    blog_text = Path(input_path).read_text()
+    print(f"Loaded blog post: {len(blog_text)} characters")
+    
+    # 1. Generate SEO summary
+    print("Generating SEO summary...")
+    summary = await client.generate(
+        prompt=f"Write an SEO-optimized summary under 160 characters:\n\n{blog_text[:2000]}",
+        modality="text",
+        quality="premium"
+    )
+    (output_path / "seo_summary.txt").write_text(summary.content)
+    print(f"   Saved: seo_summary.txt")
+    
+    # 2. Generate hero image
