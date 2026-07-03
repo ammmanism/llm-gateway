@@ -69,3 +69,28 @@ class CircuitBreaker:
     
     def record_success(self):
         """Record successful call."""
+        self.failures = 0
+        self.total_calls += 1
+        
+        if self.state == CircuitState.HALF_OPEN:
+            self.successes += 1
+            if self.successes >= self.half_open_max_calls:
+                self.state = CircuitState.CLOSED
+                self.total_calls = 0
+    
+    def record_failure(self):
+        """Record failed call."""
+        self.failures += 1
+        self.last_failure_time = time.time()
+        self.total_calls += 1
+        
+        if self.state == CircuitState.CLOSED and self.failures >= self.failure_threshold:
+            self.state = CircuitState.OPEN
+        elif self.state == CircuitState.HALF_OPEN:
+            self.state = CircuitState.OPEN
+
+
+class FallbackChain:
+    """
+    Orchestrates fallback across multiple providers.
+    """
