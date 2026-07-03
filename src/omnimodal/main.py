@@ -177,6 +177,8 @@ async def generate(request: GenerationRequest, req: Request):
             fallback_used=result.fallback_used
         )
 
+    except HTTPException as e:
+        raise e
     except ProviderError as e:
         logger.error(f"Provider error: {e}")
         raise HTTPException(503, f"Provider unavailable: {str(e)}")

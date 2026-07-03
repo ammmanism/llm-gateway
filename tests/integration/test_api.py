@@ -17,6 +17,7 @@ async def client():
     from omnimodal.gateway.router import SemanticRouter
     from omnimodal.gateway.cost_optimizer import CostOptimizer
     from omnimodal.gateway.fallback import FallbackChain
+    from omnimodal.observability.metrics import MetricsCollector
     from omnimodal.modalities.text import TextAdapter
     from omnimodal.modalities.image import ImageAdapter
     from omnimodal.modalities.audio import AudioAdapter
@@ -25,6 +26,7 @@ async def client():
     app.state.router = SemanticRouter()
     app.state.cost_optimizer = CostOptimizer()
     app.state.fallback = FallbackChain()
+    app.state.metrics = MetricsCollector()
     app.state.adapters = {
         "text": TextAdapter(),
         "image": ImageAdapter(),
