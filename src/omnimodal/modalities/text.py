@@ -118,3 +118,122 @@ class TextAdapter(BaseModalityAdapter):
             tokens_out = response.usage.output_tokens
             cost = (tokens_in / 1000 * self.pricing[model]["input"] +
                     tokens_out / 1000 * self.pricing[model]["output"])
+            return TextResponse(
+                content=content,
+                mime_type="text/plain",
+                model=model,
+                provider="anthropic",
+                cost=round(cost, 6),
+                tokens_input=tokens_in,
+                tokens_output=tokens_out
+            )
+        except Exception as e:
+            raise ProviderError(f"Anthropic error: {e}")
+
+    async def _generate_google(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for Google Generative AI
+        # In production, use google.generativeai
+        return TextResponse(
+            content="[Google Gemini response placeholder]",
+            mime_type="text/plain",
+            model=model,
+            provider="google",
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
+        )
+
+    async def _generate_local(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for Ollama
+        # Use httpx to call local endpoint
+        return TextResponse(
+            content="[Local model response placeholder]",
+            mime_type="text/plain",
+            model=model,
+            provider="local",
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
+        )
+
+    async def _generate_huggingface(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for Hugging Face Inference API
+        return TextResponse(
+            content="[Hugging Face response placeholder]",
+            mime_type="text/plain",
+            model=model,
+            provider="huggingface",
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
+        )
+
+    async def _generate_bedrock(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for AWS Bedrock
+        return TextResponse(
+            content="[Bedrock response placeholder]",
+            mime_type="text/plain",
+            model=model,
+            provider="aws_bedrock",
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
+        )
+
+    async def _generate_mistral(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+        # Placeholder for Mistral API
+        return TextResponse(
+            content="[Mistral response placeholder]",
+            mime_type="text/plain",
+            model=model,
+            provider="mistral",
+            cost=0.0,
+            tokens_input=0,
+            tokens_output=0
+        )
+
+    async def generate_stream(self, inputs: List[Any], provider: str = "openai", **kwargs):
+        prompt = self._extract_prompt(inputs)
+        client = self.clients.get(provider)
+        if not client:
+            raise ProviderError(f"{provider} client not initialized")
+
+        if provider == "openai":
+            stream = await client.chat.completions.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                stream=True
+            )
+            async for chunk in stream:
+                if chunk.choices[0].delta.content:
+                    yield chunk.choices[0].delta.content
+        else:
+            # Fallback: just yield full response
+            result = await self.generate(inputs, provider=provider)
+            yield result.content
+
+    def _extract_prompt(self, inputs: List[Any]) -> str:
+        texts = []
+        for inp in inputs:
+            if isinstance(inp, dict) and inp.get("type") == "text":
+                texts.append(inp["content"])
+            elif isinstance(inp, str):
+                texts.append(inp)
+        return "\n".join(texts)
+
+    def _default_model(self, provider: str) -> str:
+        defaults = {
+            "openai": "gpt-4o",
+            "anthropic": "claude-3-opus",
+            "google": "gemini-pro",
+            "local": "llama-3-70b",
+            "huggingface": "meta-llama/Llama-2-70b-chat-hf",
+            "aws_bedrock": "amazon.titan-tg1-large",
+            "mistral": "mistral-large-latest",
+        }
+        return defaults.get(provider, "gpt-4o")
+
+    async def close(self):
+        for client in self.clients.values():
+            if hasattr(client, 'close'):
+                await client.close()
