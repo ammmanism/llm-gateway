@@ -186,3 +186,66 @@ async def generate_stream(request: GenerationRequest, req: Request):
     adapter = req.app.state.adapters.get(request.output_modality)
     
     async def event_stream():
+        async for chunk in adapter.generate_stream(request.inputs):
+            yield f"data: {chunk}\n\n"
+        yield "data: [DONE]\n\n"
+    
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream"
+    )
+
+
+@app.get("/health")
+async def health():
+    """Health check with provider status."""
+    return {
+        "status": "healthy",
+        "version": settings.version,
+        "providers": {
+            name: {"enabled": cfg.enabled, "regions": cfg.regions}
+            for name, cfg in settings.providers.items()
+        }
+    }
+
+
+@app.get("/v1/providers")
+async def list_providers():
+    """List available providers and their capabilities."""
+    return {
+        "providers": [
+            {
+                "name": "openai",
+                "modalities": ["text", "image", "audio"],
+                "models": ["gpt-4o", "gpt-4-turbo", "dall-e-3", "whisper-1"]
+            },
+            {
+                "name": "anthropic",
+                "modalities": ["text"],
+                "models": ["claude-3-opus", "claude-3-sonnet", "claude-3-haiku"]
+            },
+            {
+                "name": "google",
+                "modalities": ["text", "image", "video"],
+                "models": ["gemini-pro", "gemini-ultra"]
+            }
+        ]
+    }
+
+
+# ---------------------------------------------
+# ERROR HANDLERS
+# ---------------------------------------------
+
+from fastapi.responses import JSONResponse
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": str(exc),
+            "request_id": getattr(request.state, "request_id", "unknown"),
+            "type": exc.__class__.__name__
+        }
+    )
