@@ -78,3 +78,52 @@ class GenerationRequest(BaseModel):
     output_modality: str = Field(..., description="text | image | audio | video")
     quality: str = "standard"  # draft | standard | premium | enterprise
     max_cost_usd: Optional[float] = None
+    max_latency_ms: Optional[int] = None
+    stream: bool = False
+    metadata: dict = Field(default_factory=dict)
+
+
+class GenerationResponse(BaseModel):
+    request_id: str
+    content: str  # Base64 or text
+    content_type: str
+    provider_used: str
+    cost_usd: float
+    latency_ms: int
+    cache_hit: bool
+    fallback_used: bool
+
+
+class FusionRequest(BaseModel):
+    inputs: list[ModalityInput]
+    output_modality: str
+    operation: str = "fuse"  # fuse | edit | animate | transcribe
+    duration_seconds: Optional[int] = None
+    constraints: dict = Field(default_factory=dict)
+
+
+# ---------------------------------------------
+# API ENDPOINTS
+# ---------------------------------------------
+
+@app.post("/v1/generate", response_model=GenerationResponse)
+async def generate(request: GenerationRequest, req: Request):
+    """
+    Single-modality generation with intelligent routing.
+    """
+    request_id = request.request_id or str(uuid.uuid4())
+    start_time = asyncio.get_event_loop().time()
+    
+    try:
+        # Route to optimal adapter
+        adapter = req.app.state.adapters.get(request.output_modality)
+        if not adapter:
+            raise HTTPException(400, f"Unsupported modality: {request.output_modality}")
+        
+        # Get routing decision
+        route = await req.app.state.router.select(
+            modality=request.output_modality,
+            quality=request.quality,
+            cost_budget=request.max_cost_usd,
+            latency_budget=request.max_latency_ms
+        )
