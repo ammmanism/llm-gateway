@@ -58,3 +58,17 @@ class MetricsCollector:
         self.error_count = 0
         self.total_cost = 0.0
 
+    def record_request(self, modality: str, provider: str, latency_ms: float, cost_usd: float, success: bool = True):
+        self.request_count += 1
+        self.total_cost += cost_usd
+        if not success:
+            self.error_count += 1
+        return {
+            "modality": modality,
+            "provider": provider,
+            "latency_ms": latency_ms,
+            "cost_usd": cost_usd,
+            "success": success,
+            "error_rate": self.error_count / self.request_count if self.request_count > 0 else 0,
+            "total_cost": self.total_cost
+        }
