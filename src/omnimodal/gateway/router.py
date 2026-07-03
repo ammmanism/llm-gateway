@@ -158,3 +158,44 @@ class SemanticRouter:
         for provider, scores in self.quality_matrix.items():
             if scores.get(modality, 0) > 0 or ignore_quality:
                 # Check circuit breaker
+                if self.circuit_states.get(provider) != "OPEN":
+                    candidates.append(provider)
+        return candidates
+    
+    def _estimate_cost(self, provider: str, modality: str, complexity: int = 5) -> float:
+        """Estimate cost for this provider and modality."""
+        model = self.cost_models.get(provider, {})
+        base = model.get(modality) or model.get("text_input") or 0.01
+        # Scale by complexity (1-10)
+        return base * (1 + (complexity - 5) * 0.1)
+    
+    def _quality_threshold(self, tier: str) -> float:
+        """Minimum quality for each tier."""
+        thresholds = {
+            "draft": 5.0,
+            "standard": 7.0,
+            "premium": 8.5,
+            "enterprise": 9.0
+        }
+        return thresholds.get(tier, 7.0)
+    
+    def _reliability_score(self, provider: str) -> float:
+        """Current reliability based on recent error rates."""
+        # In production: query metrics from Prometheus
+        return 0.98  # Placeholder
+    
+    def _default_model(self, provider: str, modality: str) -> str:
+        """Default model for provider + modality."""
+        defaults = {
+            "openai": {"text": "gpt-4o", "image": "dall-e-3", "audio": "whisper-1"},
+            "anthropic": {"text": "claude-3-opus"},
+            "google": {"text": "gemini-pro", "image": "gemini-pro-vision"},
+            "stability": {"image": "stable-diffusion-3"},
+            "replicate": {"video": "stable-video-diffusion"},
+            "local": {"text": "llama-3-70b"},
+        }
+        return defaults.get(provider, {}).get(modality, "unknown")
+    
+    def update_circuit_state(self, provider: str, state: str):
+        """Update circuit breaker state."""
+        self.circuit_states[provider] = state
