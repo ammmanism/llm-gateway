@@ -42,3 +42,42 @@ class PIIRedactor:
         
         for pii_type, pattern in self.PATTERNS.items():
             for match in pattern.finditer(redacted):
+                start, end = match.span()
+                original = match.group()
+                
+                if preserve_length:
+                    replacement = "*" * len(original)
+                else:
+                    replacement = f"[{pii_type.upper()}_REDACTED]"
+                
+                redacted = redacted[:start] + replacement + redacted[end:]
+                findings.append({
+                    "type": pii_type,
+                    "position": (start, end),
+                    "confidence": 1.0
+                })
+        
+        return redacted, findings
+    
+    def redact_multimodal(self, inputs: List[Dict]) -> List[Dict]:
+        """Redact PII from multimodal inputs (text only)."""
+        redacted_inputs = []
+        for inp in inputs:
+            if inp.get("type") == "text":
+                text, findings = self.redact(inp["content"])
+                redacted_inputs.append({
+                    **inp,
+                    "content": text,
+                    "pii_redacted": findings
+                })
+            else:
+                redacted_inputs.append(inp)
+        return redacted_inputs
+
+
+class PIIRedactionMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware that automatically redacts PII before sending to providers.
+    """
+    
+    def __init__(self, app, enabled: bool = True):
