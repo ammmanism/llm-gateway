@@ -1,7 +1,8 @@
-from fastapi import FastAPI, Request, HTTPException, Response, BackgroundTasks, UploadFile, File
+from fastapi import FastAPI, Request, HTTPException, Response, UploadFile, File
 from fastapi.responses import JSONResponse, StreamingResponse
 import json
 import asyncio
+from pydantic import ValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
 import time
@@ -10,14 +11,29 @@ import uuid
 from src.config import settings
 from src.utils.logger import get_logger, request_id_var
 from src.utils.embeddings import embedding_engine
+from src.utils.tokenizer import count_tokens, count_message_tokens
 from src.cache.semantic import semantic_cache
 from src.router import smart_router, get_fallback_chain
+from src.router.executor import classify_provider_error, complete_with_fallback
 from src.providers import get_provider
+from src.providers.capabilities import canonical_model, model_for_provider, provider_supports_request
 from src.billing.tenant import TenantManager
 from src.billing.meter import UsageMeter
 from src.observability import setup_tracing, dashboard_router
 from src.admin.router import router as admin_router
-from src.observability.metrics import REQUESTS_TOTAL, REQUEST_DURATION
+from src.observability.metrics import (
+    CACHE_HITS,
+    CACHE_MISSES,
+    COST_USD_TOTAL,
+    REQUESTS_TOTAL,
+    REQUEST_DURATION,
+    ROUTING_DECISIONS,
+    PROVIDER_FAILURES,
+    SAVINGS_USD_TOTAL,
+    TOKENS_TOTAL,
+)
+from src.schemas import ChatCompletionRequest
+from src.security import validate_startup_security
 
 logger = get_logger(__name__)
 
@@ -26,7 +42,7 @@ app = FastAPI(title=settings.APP_NAME, version="1.0.0")
 # Setup CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,6 +63,7 @@ usage_meter = None
 async def startup_event():
     global tenant_manager, usage_meter
     logger.info("Starting up Neurocache")
+    validate_startup_security()
     embedding_engine.load()
     await semantic_cache.initialize()
     tenant_manager = TenantManager(semantic_cache.redis_client, semantic_cache.pg_pool)
@@ -108,40 +125,62 @@ async def chat_completions(request: Request):
     if not tenant:
         raise HTTPException(status_code=401, detail="Invalid API key")
         
-    request_data = await request.json()
+    try:
+        request_data = await request.json()
+        chat_request = ChatCompletionRequest.model_validate(request_data)
+    except (json.JSONDecodeError, ValidationError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=f"Invalid chat completion request: {exc}")
     
     # 2. Rate Limiting
-    estimated_tokens = sum(len(m.get("content", "")) // 4 for m in request_data.get("messages", [])) + request_data.get("max_tokens", 100)
+    requested_model = canonical_model(chat_request.model)
+    if tenant.allowed_models and requested_model not in [canonical_model(m) for m in tenant.allowed_models]:
+        raise HTTPException(status_code=403, detail=f"Model {requested_model} is not allowed for this tenant")
+
+    messages = chat_request.as_provider_messages()
+    params = chat_request.provider_params()
+    estimated_tokens = count_message_tokens(requested_model, messages) + (chat_request.max_tokens or 100)
     allowed, remaining, reason = await tenant_manager.check_rate_limit(tenant, estimated_tokens)
     if not allowed:
         raise HTTPException(status_code=429, detail=reason)
-        
-    model = request_data.get("model", "gpt-4o")
-    messages = request_data.get("messages", [])
-    
-    # Extract last user message for semantic caching (simplification)
-    query_text = ""
-    for msg in reversed(messages):
-        if msg.get("role") == "user":
-            query_text = msg.get("content", "")
-            break
+
+    query_text = chat_request.last_user_text()
+    is_stream = chat_request.stream
+    cache_namespace = request.headers.get(
+        "X-Cache-Namespace",
+        str(request_data.get("cache_namespace", settings.DEFAULT_CACHE_NAMESPACE)),
+    )
+    cache_control = request.headers.get("Cache-Control", "").lower()
+    cache_mode = request.headers.get("X-Cache-Mode", "").lower()
+    no_cache = (
+        "no-store" in cache_control
+        or "no-cache" in cache_control
+        or cache_mode in {"bypass", "no-store", "no-cache"}
+        or bool(request_data.get("no_cache", False))
+    )
             
     # 3. Semantic Cache Check
-    params = {k:v for k,v in request_data.items() if k not in ["model", "messages", "stream"]}
-    is_hit, cached_response, similarity = await semantic_cache.check_cache(
-        query_text, model, params, tenant.id, threshold=settings.DEFAULT_SIMILARITY_THRESHOLD
-    )
+    is_hit, cached_response, similarity = (False, None, None)
+    if query_text and not no_cache:
+        is_hit, cached_response, similarity = await semantic_cache.check_cache(
+            query_text,
+            requested_model,
+            params,
+            tenant.id,
+            threshold=tenant.cache_threshold,
+            namespace=cache_namespace,
+        )
     
     start_time = time.time()
     
     if is_hit:
-        REQUESTS_TOTAL.labels(tenant_id=tenant.id, provider="cache", model=model, status="200", is_cache_hit="true").inc()
+        REQUESTS_TOTAL.labels(tenant_id=tenant.id, provider="cache", model=requested_model, status="200", is_cache_hit="true").inc()
+        CACHE_HITS.labels(tenant_id=tenant.id).inc()
         latency_ms = int((time.time() - start_time) * 1000)
         
         # We assume cost saved is relative to GPT-4o
         cost_saved = usage_meter.calculate_savings(0, 0, 0) # Should use actual token counts from cache
         await usage_meter.log_usage(
-            tenant.id, request.state.id, True, "cache", model,
+            tenant.id, request.state.id, True, "cache", requested_model,
             0, 0, 0.0, latency_ms, cache_similarity=similarity
         )
         
@@ -151,7 +190,6 @@ async def chat_completions(request: Request):
             "X-Saved-USD": f"{cost_saved:.6f}"
         }
         
-        is_stream = request_data.get("stream", False)
         if is_stream:
             async def cache_stream_generator():
                 # Fake a stream for the cached response
@@ -163,7 +201,7 @@ async def chat_completions(request: Request):
                     "id": chunk_id,
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
-                    "model": model,
+                    "model": requested_model,
                     "choices": [{"delta": {"content": content}, "index": 0, "finish_reason": None}]
                 }
                 yield f"data: {json.dumps(chunk_data)}\n\n"
@@ -172,7 +210,7 @@ async def chat_completions(request: Request):
                     "id": chunk_id,
                     "object": "chat.completion.chunk",
                     "created": int(time.time()),
-                    "model": model,
+                    "model": requested_model,
                     "choices": [{"delta": {}, "index": 0, "finish_reason": "stop"}]
                 }
                 yield f"data: {json.dumps(finish_data)}\n\n"
@@ -182,92 +220,129 @@ async def chat_completions(request: Request):
         else:
             return JSONResponse(content=cached_response, headers=headers)
         
+    else:
+        CACHE_MISSES.labels(tenant_id=tenant.id).inc()
+
     # 4. Routing Decision
     # If the user specified a specific model, we might try to honor it or map it to a tier.
     # For simplicity, we just use the smart router to pick the best provider based on weights.
     try:
         routing_decision = smart_router.route(estimated_tokens, weights=tenant.routing_weights)
-    except Exception as e:
+    except Exception:
         raise HTTPException(status_code=503, detail="No providers available")
         
     primary_provider_name = routing_decision.name
     fallback_chain = get_fallback_chain("tier_a", primary_provider_name)
-    
-    is_stream = request_data.get("stream", False)
+    uses_tools = bool(chat_request.tools)
+    uses_json_mode = bool(chat_request.response_format)
+    ROUTING_DECISIONS.labels(provider=primary_provider_name, reason="smart_route").inc()
     
     if is_stream:
-        used_provider = primary_provider_name
-        provider = get_provider(used_provider)
-        # Find closest model match
-        p_model = provider.supported_models[0]
-        if model in provider.supported_models:
-            p_model = model
-            
         async def interception_stream():
-            full_response_text = ""
-            tokens_in = estimated_tokens # Approximation
-            tokens_out = 0
-            
-            try:
-                async for chunk in provider.stream(p_model, messages, params):
-                    yield chunk
-                    # Try to extract content to buffer it
-                    try:
-                        if chunk.startswith("data: ") and chunk != "data: [DONE]\n\n":
-                            data = json.loads(chunk[6:])
-                            delta = data.get("choices", [{}])[0].get("delta", {})
-                            content = delta.get("content", "")
-                            if content:
-                                full_response_text += content
-                                tokens_out += count_tokens(p_model, content)
-                    except Exception:
-                        pass
-                        
-                # End of stream reached successfully
-                smart_router.providers[used_provider].circuit.record_success()
-                
-                latency_ms = int((time.time() - start_time) * 1000)
-                cost = provider.calculate_cost(p_model, tokens_in, tokens_out)
-                
-                # We can't await inside a regular generator if it's already closed, 
-                # but we are an async generator, so we can await here:
-                asyncio.create_task(semantic_cache.store_cache(
-                    query_text, model, params, 
-                    {"id": "chatcmpl", "object": "chat.completion", "choices": [{"message": {"role": "assistant", "content": full_response_text}}]}, 
-                    tenant.id, used_provider, tokens_in, tokens_out, cost, settings.DEFAULT_CACHE_TTL_HOURS * 3600
-                ))
-                asyncio.create_task(usage_meter.log_usage(
-                    tenant.id, request.state.id, False, used_provider, p_model,
-                    tokens_in, tokens_out, cost, latency_ms, routing_reason="smart_route"
-                ))
-                
-            except Exception as e:
-                logger.warning(f"Provider {used_provider} stream failed: {e}")
-                smart_router.providers[used_provider].circuit.record_failure()
-                smart_router.providers[used_provider].ewma_error_rate.update(1.0)
-                yield f"data: {json.dumps({'error': str(e)})}\n\n"
-                
+            last_error = None
+            for used_provider in fallback_chain[: settings.MAX_FALLBACK_ATTEMPTS]:
+                provider = get_provider(used_provider)
+                p_model = model_for_provider(requested_model, used_provider, provider.supported_models)
+                if not provider_supports_request(
+                    used_provider,
+                    p_model,
+                    stream=True,
+                    uses_tools=uses_tools,
+                    uses_json_mode=uses_json_mode,
+                ):
+                    continue
+
+                full_response_text = ""
+                tokens_in = estimated_tokens
+                tokens_out = 0
+                try:
+                    async for chunk in provider.stream(p_model, messages, params):
+                        yield chunk
+                        try:
+                            if chunk.startswith("data: ") and chunk != "data: [DONE]\n\n":
+                                data = json.loads(chunk[6:])
+                                delta = data.get("choices", [{}])[0].get("delta", {})
+                                content = delta.get("content", "")
+                                if content:
+                                    full_response_text += content
+                                    tokens_out += count_tokens(p_model, content)
+                        except Exception:
+                            pass
+
+                    smart_router.providers[used_provider].circuit.record_success()
+                    smart_router.providers[used_provider].ewma_error_rate.update(0.0)
+
+                    latency_ms = int((time.time() - start_time) * 1000)
+                    cost = provider.calculate_cost(p_model, tokens_in, tokens_out)
+                    REQUEST_DURATION.labels(tenant_id=tenant.id, provider=used_provider, model=p_model).observe(latency_ms / 1000.0)
+                    REQUESTS_TOTAL.labels(tenant_id=tenant.id, provider=used_provider, model=p_model, status="200", is_cache_hit="false").inc()
+                    TOKENS_TOTAL.labels(tenant_id=tenant.id, provider=used_provider, model=p_model, direction="in").inc(tokens_in)
+                    TOKENS_TOTAL.labels(tenant_id=tenant.id, provider=used_provider, model=p_model, direction="out").inc(tokens_out)
+                    COST_USD_TOTAL.labels(tenant_id=tenant.id, provider=used_provider).inc(cost)
+                    SAVINGS_USD_TOTAL.labels(tenant_id=tenant.id).inc(usage_meter.calculate_savings(tokens_in, tokens_out, cost))
+
+                    if query_text and not no_cache:
+                        asyncio.create_task(semantic_cache.store_cache(
+                            query_text, requested_model, params,
+                            {"id": "chatcmpl", "object": "chat.completion", "choices": [{"message": {"role": "assistant", "content": full_response_text}}]},
+                            tenant.id, used_provider, tokens_in, tokens_out, cost, tenant.cache_ttl_hours * 3600, namespace=cache_namespace
+                        ))
+                    asyncio.create_task(usage_meter.log_usage(
+                        tenant.id, request.state.id, False, used_provider, p_model,
+                        tokens_in, tokens_out, cost, latency_ms, routing_reason="smart_route"
+                    ))
+                    return
+                except Exception as e:
+                    last_error = e
+                    error_type = classify_provider_error(e)
+                    logger.warning(f"Provider {used_provider} stream failed: {error_type}: {e}")
+                    PROVIDER_FAILURES.labels(provider=used_provider, error_type=error_type).inc()
+                    smart_router.providers[used_provider].circuit.record_failure()
+                    smart_router.providers[used_provider].ewma_error_rate.update(1.0)
+                    REQUESTS_TOTAL.labels(tenant_id=tenant.id, provider=used_provider, model=p_model, status="error", is_cache_hit="false").inc()
+
+            yield f"data: {json.dumps({'error': {'message': str(last_error or 'No streaming provider available')}})}\n\n"
+
         headers = {
             "X-Cache-Status": "MISS",
-            "X-Provider": used_provider
+            "X-Provider": primary_provider_name,
+            "X-Cache-Namespace": cache_namespace,
         }
         return StreamingResponse(interception_stream(), media_type="text/event-stream", headers=headers)
         
     else:
         # Standard non-streaming completion
-        final_response = await provider.complete(p_model, messages, params)
-        smart_router.providers[used_provider].circuit.record_success()
-        smart_router.providers[used_provider].ewma_latency.update(final_response.latency_ms)
+        try:
+            result = await complete_with_fallback(
+                fallback_chain,
+                requested_model,
+                messages,
+                params,
+                stream=False,
+                uses_tools=uses_tools,
+                uses_json_mode=uses_json_mode,
+            )
+        except Exception as exc:
+            REQUESTS_TOTAL.labels(tenant_id=tenant.id, provider="fallback", model=requested_model, status="error", is_cache_hit="false").inc()
+            raise HTTPException(status_code=503, detail=f"All providers failed: {exc}")
+
+        final_response = result.response
+        used_provider = result.provider
         
         latency_ms = int((time.time() - start_time) * 1000)
         REQUEST_DURATION.labels(tenant_id=tenant.id, provider=used_provider, model=final_response.model).observe(latency_ms / 1000.0)
         REQUESTS_TOTAL.labels(tenant_id=tenant.id, provider=used_provider, model=final_response.model, status="200", is_cache_hit="false").inc()
+        TOKENS_TOTAL.labels(tenant_id=tenant.id, provider=used_provider, model=final_response.model, direction="in").inc(final_response.tokens_in)
+        TOKENS_TOTAL.labels(tenant_id=tenant.id, provider=used_provider, model=final_response.model, direction="out").inc(final_response.tokens_out)
+        COST_USD_TOTAL.labels(tenant_id=tenant.id, provider=used_provider).inc(final_response.cost_usd)
+        SAVINGS_USD_TOTAL.labels(tenant_id=tenant.id).inc(usage_meter.calculate_savings(final_response.tokens_in, final_response.tokens_out, final_response.cost_usd))
         
-        await semantic_cache.store_cache(
-            query_text, model, params, final_response.response, tenant.id,
-            used_provider, final_response.tokens_in, final_response.tokens_out,
-            final_response.cost_usd, settings.DEFAULT_CACHE_TTL_HOURS * 3600
-        )
+        if query_text and not no_cache:
+            await semantic_cache.store_cache(
+                query_text, requested_model, params, final_response.response, tenant.id,
+                used_provider, final_response.tokens_in, final_response.tokens_out,
+                final_response.cost_usd, tenant.cache_ttl_hours * 3600, namespace=cache_namespace
+            )
         
         await usage_meter.log_usage(
             tenant.id, request.state.id, False, used_provider, final_response.model,
@@ -278,7 +353,9 @@ async def chat_completions(request: Request):
         headers = {
             "X-Cache-Status": "MISS",
             "X-Provider": used_provider,
-            "X-Cost-USD": f"{final_response.cost_usd:.6f}"
+            "X-Cost-USD": f"{final_response.cost_usd:.6f}",
+            "X-Fallback-Attempts": ",".join(attempt.provider for attempt in result.attempts),
+            "X-Cache-Namespace": cache_namespace,
         }
         
         return JSONResponse(content=final_response.response, headers=headers)
