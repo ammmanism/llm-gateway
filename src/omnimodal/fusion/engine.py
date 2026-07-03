@@ -82,3 +82,32 @@ class FusionDAG:
         content_val = getattr(final_out, "content", final_out)
         
         providers = []
+        for res in results.values():
+            prov = getattr(res, "provider", "unknown")
+            if prov != "unknown":
+                providers.append(prov)
+                
+        return FusionResult(
+            content=content_val,
+            stages_executed=len(self.stages),
+            providers=list(set(providers)) if providers else ["openai"]
+        )
+
+    async def _execute_stage(self, stage: FusionStage, adapters: Dict, prior_results: Dict) -> Any:
+        """Execute a single fusion stage."""
+        adapter = adapters.get(stage.adapter)
+        if not adapter:
+            raise ValueError(f"Unknown adapter: {stage.adapter}")
+        
+        # Resolve inputs
+        resolved_inputs = []
+        for inp in stage.inputs:
+            if inp in prior_results:
+                resolved_inputs.append(prior_results[inp])
+            else:
+                resolved_inputs.append(inp)
+        
+        # Execute based on operation
+        if stage.operation == "generate":
+            return await adapter.generate(resolved_inputs, **stage.params)
+        elif stage.operation == "edit":
