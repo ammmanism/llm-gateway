@@ -296,3 +296,9 @@ class PromptRegistry:
         if self.tokenizer:
             return len(self.tokenizer.encode(prompt))
         return len(prompt) // 4
+
+    def estimate_cost(self, prompt: str, model: str = "gpt-4") -> float:
+        tokens = self.estimate_tokens(prompt)
+        rates = {"gpt-4": (0.03, 0.06), "gpt-3.5-turbo": (0.0015, 0.002), "claude-3": (0.015, 0.075)}
+        input_rate, _output_rate = rates.get(model, (0.03, 0.06))
+        return (tokens / 1000) * input_rate
