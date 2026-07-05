@@ -14,6 +14,12 @@ CARBON_INTENSITY = {
 }
 
 ENERGY_PER_TOKEN = {
+    "gpt-4.1": 0.4,
+    "gpt-4.1-mini": 0.15,
+    "gemini-2.5-flash": 0.08,
+    "gemini-2.5-pro": 0.35,
+    "claude-4-sonnet": 0.3,
+    "claude-4-opus": 0.7,
     "gpt-4o": 0.5,
     "gpt-4-turbo": 1.0,
     "claude-3-opus": 0.8,
