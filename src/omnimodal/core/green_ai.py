@@ -142,3 +142,11 @@ class CarbonBudgetEnforcer:
         while True:
             await asyncio.sleep(86400)
             self.reset_daily()
+
+    def carbon_prometheus_metric(self):
+        try:
+            from prometheus_client import Counter
+            c = Counter("carbon_footprint_grams", "Total carbon footprint in grams")
+            c.inc(self.total_carbon)  # type: ignore
+        except ImportError:
+            pass
