@@ -257,3 +257,13 @@ class ExperimentEngine:
 
 
 import asyncio
+
+    def check_guardrails(self, exp_id: str, max_cost_regression: float = 0.1) -> bool:
+        exp = self.experiments.get(exp_id)
+        if not exp or len(exp.variants) < 2:
+            return True
+        t = exp.variants[1]; c = exp.variants[0]
+        if c.total_cost > 0 and t.total_cost > 0:
+            if t.total_cost / c.total_cost > 1 + max_cost_regression:
+                return False
+        return True
