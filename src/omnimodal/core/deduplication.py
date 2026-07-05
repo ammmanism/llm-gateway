@@ -167,3 +167,10 @@ class RequestCoalescer:
             "semantic_inflight": len(self.semantic_inflight),
             "active_batches": len([q for q in self.batch_queues.values() if q])
         }
+
+    _semantic_hash_cache: Dict[str, str] = {}
+    def _cached_semantic_hash(self, modality: str, prompt: str) -> str:
+        cache_key = f"{modality}:{prompt}"
+        if cache_key not in self._semantic_hash_cache:
+            self._semantic_hash_cache[cache_key] = self._semantic_hash(modality, prompt)
+        return self._semantic_hash_cache[cache_key]
