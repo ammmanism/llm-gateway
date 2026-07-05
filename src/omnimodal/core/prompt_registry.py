@@ -280,3 +280,19 @@ class PromptRegistry:
                 "active_version_id": template.active_version_id,
                 "status": template.status.value
             }, f, indent=2)
+
+    _tokenizer = None
+    @property
+    def tokenizer(self):
+        if self._tokenizer is None:
+            try:
+                import tiktoken
+                self._tokenizer = tiktoken.get_encoding("cl100k_base")
+            except ImportError:
+                self._tokenizer = None
+        return self._tokenizer
+
+    def estimate_tokens(self, prompt: str) -> int:
+        if self.tokenizer:
+            return len(self.tokenizer.encode(prompt))
+        return len(prompt) // 4
