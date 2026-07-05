@@ -1,0 +1,23 @@
+{
+  "name": "api-test-prompt",
+  "description": "Test from API",
+  "versions": [
+    {
+      "id": "5e9e8ff1f7fc3eb3",
+      "content": "Hello {name}, welcome to {place}!",
+      "template_variables": [
+        "name",
+        "place"
+      ],
+      "model_config": {},
+      "created_at": 1783246831.7580664,
+      "created_by": "system",
+      "avg_latency_ms": 0.0,
+      "avg_cost": 0.0,
+      "success_rate": 1.0,
+      "usage_count": 0
+    }
+  ],
+  "active_version_id": "5e9e8ff1f7fc3eb3",
+  "status": "draft"
+}

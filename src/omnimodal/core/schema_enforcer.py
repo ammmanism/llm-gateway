@@ -1,4 +1,5 @@
 import json
+import yaml
 import logging
 import re
 from typing import Dict, Any, Optional, Type, Callable
@@ -191,3 +192,12 @@ Output valid JSON now:"""
             if field not in result and "default" in field_schema:
                 result[field] = field_schema["default"]
         return result
+
+    def extract_yaml(self, text: str) -> Optional[str]:
+        try:
+            parsed = yaml.safe_load(text)
+            if isinstance(parsed, dict):
+                return json.dumps(parsed)
+        except yaml.YAMLError:
+            pass
+        return None
