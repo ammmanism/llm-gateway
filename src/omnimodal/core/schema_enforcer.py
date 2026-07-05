@@ -237,3 +237,9 @@ import yaml
         except yaml.YAMLError:
             pass
         return None
+
+    async def enforce_with_defaults(self, prompt: str, gen_fn, schema: dict) -> dict:
+        try:
+            return await self.enforce(prompt, gen_fn, schema)
+        except Exception:
+            return self._apply_defaults({}, schema)
