@@ -1,11 +1,30 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 from unittest.mock import AsyncMock, patch
+from omnimodal.config import settings
 
 
 @pytest.fixture
 def app():
-    from omnimodal.main import app
+    from omnimodal.main import app, SemanticRouter, CostOptimizer, FallbackChain, MetricsCollector
+    from omnimodal.core.experiments import ExperimentEngine
+    from omnimodal.core.green_ai import CarbonTracker, CarbonBudgetEnforcer
+    from omnimodal.core.prompt_registry import PromptRegistry
+    from omnimodal.core.schema_enforcer import JSONSchemaEnforcer
+
+    # Manually init state since ASGI transport doesn't trigger lifespan
+    app.state.router = SemanticRouter()
+    app.state.cost_optimizer = CostOptimizer()
+    app.state.fallback = FallbackChain()
+    app.state.metrics = MetricsCollector()
+
+    app.state.experiments = ExperimentEngine() if settings.core.enable_experiments else None
+    app.state.carbon_tracker = CarbonTracker(default_region=settings.core.carbon_default_region) if settings.core.enable_carbon_tracking else None
+    app.state.carbon_budget = CarbonBudgetEnforcer(max_grams_per_day=settings.core.carbon_max_grams_per_day) if settings.core.enable_carbon_tracking else None
+    app.state.prompt_registry = PromptRegistry(storage_path=settings.core.prompt_storage_path) if settings.core.enable_prompt_registry else None
+    app.state.schema_enforcer = JSONSchemaEnforcer(max_repair_attempts=settings.core.schema_max_repair_attempts) if settings.core.enable_schema_enforcement else None
+
+    app.state.adapters = {}
     return app
 
 

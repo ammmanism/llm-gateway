@@ -159,6 +159,7 @@ class PromptRegistry:
             "ignore previous",
             "disregard",
             "system prompt",
+            "system:",
             "you are now",
             "DAN",
             "jailbreak",

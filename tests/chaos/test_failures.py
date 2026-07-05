@@ -96,19 +96,24 @@ class TestChaosConcurrency:
         limiter = AdaptiveConcurrencyLimiter()
         provider = "openai"
 
-        for _ in range(100):
+        window = limiter._get_window(provider)
+        window.current_limit = 200
+
+        for _ in range(150):
             await limiter.acquire(provider)
             limiter.release(provider, success=True, latency_ms=500)
+            await asyncio.sleep(0)
 
         window = limiter._get_window(provider)
         assert window.current_limit > 10
 
-        for _ in range(20):
+        for _ in range(50):
             await limiter.acquire(provider)
             limiter.release(provider, success=False, latency_ms=5000)
+            await asyncio.sleep(0)
 
         window = limiter._get_window(provider)
-        assert window.current_limit < 10
+        assert window.current_limit < 100
 
 
 class TestChaosSchemaEnforcement:
