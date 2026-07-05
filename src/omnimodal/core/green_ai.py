@@ -136,3 +136,9 @@ class CarbonBudgetEnforcer:
 
     def reset_daily(self):
         self.daily_usage.clear()
+
+    import asyncio
+    async def auto_reset_daily(self):
+        while True:
+            await asyncio.sleep(86400)
+            self.reset_daily()
