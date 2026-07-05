@@ -63,6 +63,35 @@ class SecurityConfig:
     audit_log_backend: str = "console"  # console, elasticsearch, cloudtrail
 
 @dataclass
+class CoreConfig:
+    enable_deduplication: bool = True
+    dedup_exact_ttl_seconds: float = 30.0
+    dedup_semantic_ttl_seconds: float = 5.0
+    dedup_max_batch_size: int = 10
+
+    enable_concurrency_limiting: bool = True
+    concurrency_min_limit: int = 1
+    concurrency_max_limit: int = 1000
+    concurrency_default_limit: int = 10
+
+    enable_experiments: bool = True
+    experiment_min_samples: int = 100
+    experiment_confidence_level: float = 0.95
+
+    enable_schema_enforcement: bool = True
+    schema_max_repair_attempts: int = 3
+
+    prompt_storage_path: str = "./prompts"
+    enable_prompt_registry: bool = True
+
+    enable_carbon_tracking: bool = True
+    carbon_default_region: str = "us-east"
+    carbon_max_grams_per_day: float = 1000.0
+
+    enable_watermarking: bool = False
+    watermark_default_provider: str = "omnimodal"
+
+@dataclass
 class OmniModalConfig:
     app_name: str = "omnimodal"
     version: str = "1.0.0"
@@ -73,6 +102,7 @@ class OmniModalConfig:
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     observability: ObservabilityConfig = field(default_factory=ObservabilityConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
+    core: CoreConfig = field(default_factory=CoreConfig)
 
     fusion_max_stages: int = 10
     fusion_timeout_seconds: float = 300.0

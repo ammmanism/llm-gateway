@@ -14,6 +14,7 @@ import structlog
 # We can import from omnimodal dynamically to avoid circular references
 # but since settings is at config, that's safe
 from omnimodal.config import settings
+from omnimodal.core.prompt_registry import PromptRegistry
 
 logger = structlog.get_logger()
 
@@ -220,6 +221,99 @@ def costs(ctx, days):
         click.echo(f"Cache Hit Rate: {report['cache_hit_rate']:.1%}")
     
     asyncio.run(_costs())
+
+
+@cli.group()
+def prompt():
+    """Manage prompt templates (Phase 2)."""
+    pass
+
+
+@prompt.command()
+@click.argument("name")
+@click.argument("description")
+@click.argument("initial_prompt")
+@click.option("--variables", "-v", multiple=True, help="Template variables")
+@click.pass_context
+def create(ctx, name, description, initial_prompt, variables):
+    """Create a new prompt template."""
+    registry = PromptRegistry(storage_path=settings.core.prompt_storage_path)
+    tmpl = registry.create_template(
+        name=name,
+        description=description,
+        initial_prompt=initial_prompt,
+        variables=list(variables)
+    )
+    click.echo(f"Created prompt template: {tmpl.name} (v{tmpl.active_version_id[:8]})")
+
+
+@prompt.command()
+@click.argument("name")
+@click.argument("new_prompt")
+@click.option("--variables", "-v", multiple=True)
+@click.pass_context
+def update(ctx, name, new_prompt, variables):
+    """Create new version of a prompt."""
+    registry = PromptRegistry(storage_path=settings.core.prompt_storage_path)
+    version = registry.create_version(
+        template_name=name,
+        new_prompt=new_prompt,
+        variables=list(variables) or None
+    )
+    click.echo(f"Created version {version.id[:8]} for {name}")
+
+
+@prompt.command()
+@click.argument("name")
+@click.option("--steps", default=1, type=int)
+@click.pass_context
+def rollback(ctx, name, steps):
+    """Rollback to previous prompt version."""
+    registry = PromptRegistry(storage_path=settings.core.prompt_storage_path)
+    version = registry.rollback(name, steps=steps)
+    click.echo(f"Rolled back {name} to version {version.id[:8]}")
+
+
+@prompt.command()
+@click.argument("name")
+@click.pass_context
+def list_versions(ctx, name):
+    """List all versions of a prompt."""
+    registry = PromptRegistry(storage_path=settings.core.prompt_storage_path)
+    tmpl = registry.templates.get(name)
+    if not tmpl:
+        click.echo(f"Template {name} not found")
+        return
+    for i, v in enumerate(tmpl.versions):
+        marker = " [ACTIVE]" if v.id == tmpl.active_version_id else ""
+        click.echo(f"  [{i}] {v.id[:8]} - created {v.created_at}{marker}")
+        click.echo(f"       content: {v.content[:60]}...")
+
+
+@cli.command()
+@click.pass_context
+def carbon(ctx):
+    """Show carbon footprint report."""
+    async def _carbon():
+        from omnimodal.core.green_ai import CarbonTracker
+        tracker = CarbonTracker(default_region=settings.core.carbon_default_region)
+
+        # Estimate a sample request
+        est = tracker.estimate("gpt-4o", 100, 50)
+        tracker.track(est)
+
+        report = tracker.get_report()
+        click.echo("Carbon Footprint Report")
+        click.echo("=" * 40)
+        click.echo(f"Total CO2: {report['total_co2_kg']} kg")
+        click.echo(f"Total Energy: {report['total_energy_kwh']} kWh")
+        click.echo(f"Equivalent Car KM: {report['equivalent_car_km']}")
+        click.echo(f"Equivalent Tree Hours: {report['equivalent_tree_hours']}")
+        click.echo(f"\nRecommendations:")
+        for rec in report["recommendations"]:
+            click.echo(f"  - {rec}")
+
+    asyncio.run(_carbon())
 
 
 def main():

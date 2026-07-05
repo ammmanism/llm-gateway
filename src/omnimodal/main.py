@@ -6,7 +6,7 @@ import asyncio
 import uuid
 import logging
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
 from fastapi.responses import StreamingResponse, JSONResponse
@@ -25,6 +25,10 @@ from .middleware.rate_limit import RateLimitMiddleware
 from .middleware.pii_redaction import PIIRedactionMiddleware
 from .observability.metrics import MetricsCollector
 from .observability.tracing import setup_tracing
+from .core.experiments import ExperimentEngine
+from .core.green_ai import CarbonTracker, CarbonBudgetEnforcer
+from .core.prompt_registry import PromptRegistry
+from .core.schema_enforcer import JSONSchemaEnforcer
 from .exceptions import OmniModalError, RateLimitError, AuthenticationError, ProviderError
 
 logger = logging.getLogger(__name__)
@@ -42,6 +46,13 @@ async def lifespan(app: FastAPI):
     app.state.fallback = FallbackChain()
     app.state.metrics = MetricsCollector()
 
+    # Phase 2: Core services
+    app.state.experiments = ExperimentEngine() if settings.core.enable_experiments else None
+    app.state.carbon_tracker = CarbonTracker(default_region=settings.core.carbon_default_region) if settings.core.enable_carbon_tracking else None
+    app.state.carbon_budget = CarbonBudgetEnforcer(max_grams_per_day=settings.core.carbon_max_grams_per_day) if settings.core.enable_carbon_tracking else None
+    app.state.prompt_registry = PromptRegistry(storage_path=settings.core.prompt_storage_path) if settings.core.enable_prompt_registry else None
+    app.state.schema_enforcer = JSONSchemaEnforcer(max_repair_attempts=settings.core.schema_max_repair_attempts) if settings.core.enable_schema_enforcement else None
+
     # Initialize modality adapters
     app.state.adapters = {
         "text": TextAdapter(),
@@ -51,13 +62,13 @@ async def lifespan(app: FastAPI):
     }
 
     await app.state.router.warmup()
-    logger.info("🌌 OmniModal Gateway ready")
+    logger.info("OmniModal Gateway ready")
     yield
 
     # Shutdown
     for adapter in app.state.adapters.values():
         await adapter.close()
-    logger.info("👋 OmniModal Gateway shutdown")
+    logger.info("OmniModal Gateway shutdown")
 
 app = FastAPI(
     title="OmniModal",
@@ -104,6 +115,10 @@ class GenerationRequest(BaseModel):
     max_latency_ms: Optional[int] = None
     stream: bool = False
     metadata: dict = Field(default_factory=dict)
+    experiment_id: Optional[str] = None
+    user_id: Optional[str] = None
+    schema: Optional[Dict] = None
+    enable_watermark: bool = False
 
 class GenerationResponse(BaseModel):
     request_id: str
@@ -140,12 +155,34 @@ async def generate(request: GenerationRequest, req: Request):
         if not adapter:
             raise HTTPException(400, f"Unsupported modality: {request.output_modality}")
 
+        # Experiment A/B testing
+        if request.experiment_id and req.app.state.experiments:
+            exp = req.app.state.experiments.experiments.get(request.experiment_id)
+            if exp:
+                variant = req.app.state.experiments.get_variant(
+                    request.experiment_id,
+                    request.user_id or "anonymous"
+                )
+                if variant:
+                    quality = variant.config.get("quality", request.quality)
+
+        # Build prompt text for dedup/concurrency
+        prompt_text = " ".join(i.content for i in request.inputs if i.type == "text") if request.inputs else ""
+
+        # Schema injection
+        if request.schema and req.app.state.schema_enforcer:
+            schema = request.schema
+        else:
+            schema = None
+
         # Get routing decision
         route = await req.app.state.router.select(
             modality=request.output_modality,
             quality=request.quality,
             cost_budget=request.max_cost_usd,
-            latency_budget=request.max_latency_ms
+            latency_budget=request.max_latency_ms,
+            prompt=prompt_text,
+            params={"quality": request.quality}
         )
 
         # Execute with fallback
@@ -156,6 +193,15 @@ async def generate(request: GenerationRequest, req: Request):
         )
 
         latency = int((asyncio.get_event_loop().time() - start_time) * 1000)
+
+        # Carbon tracking
+        if req.app.state.carbon_tracker:
+            estimate = req.app.state.carbon_tracker.estimate(
+                model=result.model if hasattr(result, 'model') else "unknown",
+                tokens_input=len(prompt_text.split()),
+                tokens_output=len(result.content.split()) if hasattr(result, 'content') else 100
+            )
+            req.app.state.carbon_tracker.track(estimate)
 
         # Track metrics
         req.app.state.metrics.record_request(
@@ -229,13 +275,22 @@ async def generate_stream(request: GenerationRequest, req: Request):
     )
 
 @app.get("/health")
-async def health():
+async def health(req: Request):
     return {
         "status": "healthy",
         "version": settings.version,
         "providers": {
             name: {"enabled": cfg.enabled, "regions": cfg.regions}
             for name, cfg in settings.providers.items()
+        },
+        "features": {
+            "deduplication": settings.core.enable_deduplication,
+            "concurrency_limiting": settings.core.enable_concurrency_limiting,
+            "experiments": settings.core.enable_experiments,
+            "prompt_registry": settings.core.enable_prompt_registry,
+            "carbon_tracking": settings.core.enable_carbon_tracking,
+            "schema_enforcement": settings.core.enable_schema_enforcement,
+            "watermarking": settings.core.enable_watermarking,
         }
     }
 
@@ -267,6 +322,144 @@ async def cost_report(req: Request, days: int = 30):
     tracker = req.app.state.cost_optimizer
     report = tracker.get_savings_report()
     return report
+
+
+# ─────────────────────────────────────────────
+# PHASE 2: EXPERIMENTS API
+# ─────────────────────────────────────────────
+
+class ExperimentCreateRequest(BaseModel):
+    name: str
+    hypothesis: str
+    metric: str
+    variants: List[Dict]
+    min_samples: int = 100
+
+class ExperimentResponse(BaseModel):
+    experiment_id: str
+    name: str
+    status: str
+
+@app.post("/v1/experiments", response_model=ExperimentResponse)
+@require_role(Role.DEVELOPER)
+async def create_experiment(request: ExperimentCreateRequest, req: Request):
+    if not req.app.state.experiments:
+        raise HTTPException(503, "Experiment engine not enabled")
+    exp = req.app.state.experiments.create_experiment(
+        name=request.name,
+        hypothesis=request.hypothesis,
+        metric=request.metric,
+        variants=request.variants,
+        min_samples=request.min_samples
+    )
+    return ExperimentResponse(experiment_id=exp.id, name=exp.name, status=exp.status.value)
+
+@app.post("/v1/experiments/{experiment_id}/start")
+async def start_experiment(experiment_id: str, req: Request):
+    if not req.app.state.experiments:
+        raise HTTPException(503, "Experiment engine not enabled")
+    exp = req.app.state.experiments.experiments.get(experiment_id)
+    if not exp:
+        raise HTTPException(404, "Experiment not found")
+    from .core.experiments import ExperimentStatus
+    exp.status = ExperimentStatus.RUNNING
+    return {"status": "running"}
+
+@app.get("/v1/experiments/{experiment_id}/results")
+async def experiment_results(experiment_id: str, req: Request):
+    if not req.app.state.experiments:
+        raise HTTPException(503, "Experiment engine not enabled")
+    result = req.app.state.experiments.analyze_experiment(experiment_id)
+    if "error" in result:
+        raise HTTPException(404, result["error"])
+    return result
+
+
+# ─────────────────────────────────────────────
+# PHASE 2: PROMPT REGISTRY API
+# ─────────────────────────────────────────────
+
+class PromptCreateRequest(BaseModel):
+    name: str
+    description: str
+    initial_prompt: str
+    variables: List[str] = []
+    model_config: Dict = {}
+
+class PromptRenderRequest(BaseModel):
+    template_name: str
+    variables: Dict[str, Any]
+    version_id: Optional[str] = None
+
+@app.post("/v1/prompts")
+async def create_prompt(request: PromptCreateRequest, req: Request):
+    if not req.app.state.prompt_registry:
+        raise HTTPException(503, "Prompt registry not enabled")
+    tmpl = req.app.state.prompt_registry.create_template(
+        name=request.name,
+        description=request.description,
+        initial_prompt=request.initial_prompt,
+        variables=request.variables,
+        model_config=request.model_config
+    )
+    return {"name": tmpl.name, "version_id": tmpl.active_version_id, "status": tmpl.status.value}
+
+@app.post("/v1/prompts/render")
+async def render_prompt(request: PromptRenderRequest, req: Request):
+    if not req.app.state.prompt_registry:
+        raise HTTPException(503, "Prompt registry not enabled")
+    try:
+        rendered = req.app.state.prompt_registry.render(
+            template_name=request.template_name,
+            variables=request.variables,
+            version_id=request.version_id
+        )
+        return {"prompt": rendered}
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+
+
+# ─────────────────────────────────────────────
+# PHASE 2: CARBON REPORTING API
+# ─────────────────────────────────────────────
+
+@app.get("/v1/carbon")
+async def carbon_report(req: Request):
+    if not req.app.state.carbon_tracker:
+        raise HTTPException(503, "Carbon tracking not enabled")
+    return req.app.state.carbon_tracker.get_report()
+
+
+# ─────────────────────────────────────────────
+# PHASE 2: SCHEMA ENFORCEMENT API
+# ─────────────────────────────────────────────
+
+@app.post("/v1/validate")
+async def validate_output(body: Dict, req: Request):
+    if not req.app.state.schema_enforcer:
+        raise HTTPException(503, "Schema enforcer not enabled")
+    output = body.get("output", "")
+    schema = body.get("schema", {})
+    result = req.app.state.schema_enforcer.validate(output, schema)
+    return {
+        "is_valid": result.is_valid,
+        "errors": result.errors,
+        "repaired_output": result.repaired_output
+    }
+
+
+# ─────────────────────────────────────────────
+# PHASE 2: DEDUP & CONCURRENCY STATS
+# ─────────────────────────────────────────────
+
+@app.get("/v1/stats/core")
+async def core_stats(req: Request):
+    router = req.app.state.router
+    return {
+        "coalescer": router.get_coalescer_stats(),
+        "concurrency": router.get_concurrency_stats(),
+        "carbon": req.app.state.carbon_tracker.get_report() if req.app.state.carbon_tracker else {},
+    }
 
 # ─────────────────────────────────────────────
 # ERROR HANDLERS

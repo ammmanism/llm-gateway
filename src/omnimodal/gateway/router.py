@@ -5,12 +5,14 @@ Semantic Router
 import asyncio
 import logging
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Callable
 from enum import Enum
 import time
 
 from ..config import settings, ProviderConfig
 from ..exceptions import ProviderError
+from ..core.deduplication import RequestCoalescer
+from ..core.concurrency import AdaptiveConcurrencyLimiter
 from .circuit_breaker import CircuitBreaker, CircuitState
 
 logger = logging.getLogger(__name__)
@@ -42,7 +44,9 @@ class SemanticRouter:
         self.latency_estimates = self._init_latency_estimates()
         self.cost_models = self._init_cost_models()
         self.circuit_breakers: Dict[str, CircuitBreaker] = {}
-        self.load_weights()  # load custom weights if any
+        self.coalescer: Optional[RequestCoalescer] = None
+        self.concurrency_limiter: Optional[AdaptiveConcurrencyLimiter] = None
+        self.load_weights()
 
     def _init_quality_matrix(self) -> Dict[str, Dict[str, float]]:
         return {
@@ -89,7 +93,14 @@ class SemanticRouter:
         pass
 
     async def warmup(self):
-        """Pre-load models and establish connections."""
+        if settings.core.enable_deduplication:
+            self.coalescer = RequestCoalescer(
+                exact_ttl_seconds=settings.core.dedup_exact_ttl_seconds,
+                semantic_ttl_seconds=settings.core.dedup_semantic_ttl_seconds,
+                max_batch_size=settings.core.dedup_max_batch_size
+            )
+        if settings.core.enable_concurrency_limiting:
+            self.concurrency_limiter = AdaptiveConcurrencyLimiter()
         await asyncio.sleep(0.1)
 
     def _get_circuit(self, provider: str) -> CircuitBreaker:
@@ -106,8 +117,22 @@ class SemanticRouter:
         quality: str = "standard",
         cost_budget: Optional[float] = None,
         latency_budget: Optional[int] = None,
-        task_complexity: int = 5
+        task_complexity: int = 5,
+        prompt: Optional[str] = None,
+        params: Optional[Dict] = None,
     ) -> RouteDecision:
+        if self.coalescer and prompt:
+            cached = self.coalescer.exact_inflight.get(
+                self.coalescer._hash_request(modality, prompt, params or {})
+            )
+            if cached:
+                logger.info("Reusing inflight request for %s", prompt[:50])
+
+        if self.concurrency_limiter:
+            acquired = await self.concurrency_limiter.wait_and_acquire(modality)
+            if not acquired:
+                logger.warning("Concurrency limit reached for %s, proceeding anyway", modality)
+
         candidates = self._get_candidates(modality)
 
         # Filter by budget
@@ -222,3 +247,13 @@ class SemanticRouter:
             cb.state = CircuitState.CLOSED
         elif state == "HALF_OPEN":
             cb.state = CircuitState.HALF_OPEN
+
+    def get_coalescer_stats(self) -> Dict:
+        if self.coalescer:
+            return self.coalescer.get_stats()
+        return {}
+
+    def get_concurrency_stats(self) -> Dict:
+        if self.concurrency_limiter:
+            return self.concurrency_limiter.get_stats()
+        return {}

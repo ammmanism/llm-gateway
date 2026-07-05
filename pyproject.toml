@@ -33,6 +33,9 @@ dependencies = [
     "tenacity>=8.2.0",
     "python-multipart>=0.0.9",
     "numpy>=1.26.0",
+    "click>=8.1.0",
+    "pyyaml>=6.0",
+    "Pillow>=10.0.0",
 ]
 
 [project.optional-dependencies]
