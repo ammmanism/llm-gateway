@@ -178,3 +178,10 @@ class RequestCoalescer:
     def _compute_fingerprint(self, content: str) -> str:
         import hashlib
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    _semantic_hash_cache: dict[str, str] = {}
+    def _cached_semantic_hash(self, modality: str, prompt: str) -> str:
+        cache_key = f"{modality}:{prompt}"
+        if cache_key not in self._semantic_hash_cache:
+            self._semantic_hash_cache[cache_key] = self._semantic_hash(modality, prompt)
+        return self._semantic_hash_cache[cache_key]
