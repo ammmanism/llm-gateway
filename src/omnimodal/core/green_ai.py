@@ -160,3 +160,8 @@ class CarbonBudgetEnforcer:
     "gemini-2.5-pro": 0.35,
     "claude-4-sonnet": 0.3,
     "claude-4-opus": 0.7,
+
+    async def auto_reset_daily(self):
+        while True:
+            await asyncio.sleep(86400)
+            self.reset_daily()
