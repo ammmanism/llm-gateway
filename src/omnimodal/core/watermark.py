@@ -13,7 +13,7 @@ class Watermark:
     request_id: str
     provider: str
     model: str
-    version: str = "1.0"
+    version: str = "2.0"
 
 
 class TextWatermarker:
