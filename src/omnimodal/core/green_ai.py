@@ -153,3 +153,10 @@ class CarbonBudgetEnforcer:
 
     def log_carbon_trace(self, trace_id: str) -> Dict:
         return {"trace_id": trace_id, "carbon_g": self.total_carbon, "budget_g": self.carbon_budget, "remaining_g": self.budget_remaining}
+
+    "gpt-4.1": 0.4,
+    "gpt-4.1-mini": 0.15,
+    "gemini-2.5-flash": 0.08,
+    "gemini-2.5-pro": 0.35,
+    "claude-4-sonnet": 0.3,
+    "claude-4-opus": 0.7,
