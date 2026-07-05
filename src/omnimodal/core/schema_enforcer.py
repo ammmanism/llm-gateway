@@ -227,3 +227,13 @@ Output valid JSON now:"""
                 if not isinstance(d[key], dict) or not self._validate_dict(d[key], rules):
                     return False
         return True
+
+import yaml
+    def extract_yaml(self, text: str) -> str | None:
+        try:
+            parsed = yaml.safe_load(text)
+            if isinstance(parsed, dict):
+                return json.dumps(parsed)
+        except yaml.YAMLError:
+            pass
+        return None
