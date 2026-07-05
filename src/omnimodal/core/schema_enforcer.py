@@ -207,3 +207,6 @@ Output valid JSON now:"""
             return await self.enforce(prompt, gen_fn, schema)
         except Exception:
             return self._apply_defaults({}, schema)
+
+    async def enforce_dry_run(self, prompt: str, gen_fn: Callable, schema: Dict) -> Dict:
+        return self._apply_defaults({}, schema)
