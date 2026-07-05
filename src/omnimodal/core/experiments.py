@@ -267,3 +267,9 @@ import asyncio
             if t.total_cost / c.total_cost > 1 + max_cost_regression:
                 return False
         return True
+
+    async def get_metadata(self, exp_id: str) -> Dict:
+        exp = self.experiments.get(exp_id)
+        if not exp:
+            return {}
+        return {"name": exp_id, "variants": len(exp.variants), "total_cost": sum(v.total_cost for v in exp.variants), "total_latency": sum(v.total_latency for v in exp.variants)}
