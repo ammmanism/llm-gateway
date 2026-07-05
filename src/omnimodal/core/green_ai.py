@@ -150,3 +150,6 @@ class CarbonBudgetEnforcer:
             c.inc(self.total_carbon)  # type: ignore
         except ImportError:
             pass
+
+    def log_carbon_trace(self, trace_id: str) -> Dict:
+        return {"trace_id": trace_id, "carbon_g": self.total_carbon, "budget_g": self.carbon_budget, "remaining_g": self.budget_remaining}
