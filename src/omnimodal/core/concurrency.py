@@ -142,3 +142,11 @@ class AdaptiveConcurrencyLimiter:
         delay = min(self._base_backoff * (2 ** attempt) * factor, self._max_backoff)
         await asyncio.sleep(delay)
         return delay
+
+    async def acquire_with_timeout(self, timeout: float = 30.0) -> bool:
+        try:
+            await asyncio.wait_for(self._semaphore.acquire(), timeout)
+            self._current_load += 1
+            return True
+        except asyncio.TimeoutError:
+            return False
