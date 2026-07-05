@@ -302,3 +302,11 @@ class PromptRegistry:
         rates = {"gpt-4": (0.03, 0.06), "gpt-3.5-turbo": (0.0015, 0.002), "claude-3": (0.015, 0.075)}
         input_rate, _output_rate = rates.get(model, (0.03, 0.06))
         return (tokens / 1000) * input_rate
+
+    def bump_version(self, prompt_id: str) -> str:
+        v = self.get_version(prompt_id) or "0.0.0"
+        parts = [int(x) for x in v.split(".")]
+        parts[-1] += 1
+        new_v = ".".join(str(p) for p in parts)
+        self.set(prompt_id, self.get(prompt_id))
+        return new_v
