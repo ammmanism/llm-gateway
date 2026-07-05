@@ -179,3 +179,10 @@ class WatermarkManager:
         elif content_type.startswith("image/"):
             return self.image.extract(content)
         return None
+
+    def encode_file(self, input_path: str, output_path: str, watermark_text: str, key: Optional[str] = None) -> None:
+        from PIL import Image
+        img = Image.open(input_path)
+        wm = self.encode(watermark_text, key)
+        encoded = self._embed(img, wm)
+        encoded.save(output_path)
