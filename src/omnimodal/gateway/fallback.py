@@ -3,14 +3,14 @@ Fallback Chain & Circuit Breaker
 """
 
 import asyncio
-import time
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import List, Callable, Optional, Dict, Any
+from typing import Any
 
-from .circuit_breaker import CircuitBreaker, CircuitState
 from ..config import settings
-from ..exceptions import ProviderError
+from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class FallbackChain:
     """
 
     def __init__(self):
-        self.circuit_breakers: Dict[str, CircuitBreaker] = {}
+        self.circuit_breakers: dict[str, CircuitBreaker] = {}
         self.fallback_chains = {
             "text": ["openai", "anthropic", "google", "huggingface", "local"],
             "image": ["openai", "stability", "google", "local"],
@@ -95,7 +95,7 @@ class FallbackChain:
                     mime_type=getattr(result, 'mime_type', 'text/plain')
                 )
 
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 circuit.record_failure()
                 last_error = f"Timeout on {provider}"
                 logger.warning(f"Timeout on {provider}")
@@ -138,7 +138,7 @@ class FallbackChain:
             mime_type="text/plain"
         )
 
-    def get_health_status(self) -> Dict[str, str]:
+    def get_health_status(self) -> dict[str, str]:
         return {
             provider: cb.state.name
             for provider, cb in self.circuit_breakers.items()

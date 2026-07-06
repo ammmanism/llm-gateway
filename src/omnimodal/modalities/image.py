@@ -5,12 +5,13 @@ Image Modality Adapter
 import base64
 import io
 import logging
-from typing import List, Optional, Any
 from dataclasses import dataclass
+from typing import Any
+
 import openai
 
-from .base import BaseModalityAdapter, ModalityResponse
 from ..exceptions import ProviderError
+from .base import BaseModalityAdapter, ModalityResponse
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ class ImageAdapter(BaseModalityAdapter):
             self.clients["openai"] = openai.AsyncOpenAI()
         # Other clients on-demand
 
-    async def generate(self, inputs: List[Any], provider: str = "openai", **kwargs) -> ImageResponse:
+    async def generate(self, inputs: list[Any], provider: str = "openai", **kwargs) -> ImageResponse:
         prompt = self._extract_prompt(inputs)
         model = kwargs.get("model") or self._default_model(provider)
         size = kwargs.get("size", "1024x1024")
@@ -54,7 +55,7 @@ class ImageAdapter(BaseModalityAdapter):
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
-    async def _generate_openai(self, prompt: str, model: str, size: str, quality: str, style: Optional[str]) -> ImageResponse:
+    async def _generate_openai(self, prompt: str, model: str, size: str, quality: str, style: str | None) -> ImageResponse:
         client = self.clients.get("openai")
         if not client:
             raise ProviderError("OpenAI client not initialized")
@@ -100,7 +101,7 @@ class ImageAdapter(BaseModalityAdapter):
             height=1024
         )
 
-    async def edit(self, image: str, mask: Optional[str], prompt: str, provider: str = "openai") -> ImageResponse:
+    async def edit(self, image: str, mask: str | None, prompt: str, provider: str = "openai") -> ImageResponse:
         if provider == "openai":
             client = self.clients.get("openai")
             if not client:
@@ -127,7 +128,7 @@ class ImageAdapter(BaseModalityAdapter):
                 raise ProviderError(f"OpenAI edit error: {e}")
         raise ValueError("Edit not supported for provider")
 
-    async def generate_stream(self, inputs: List[Any], **kwargs):
+    async def generate_stream(self, inputs: list[Any], **kwargs):
         # Images are not streamed in chunks; yield whole image
         result = await self.generate(inputs, **kwargs)
         yield result.content
@@ -155,7 +156,7 @@ class ImageAdapter(BaseModalityAdapter):
                 raise ProviderError(f"OpenAI vision error: {e}")
         return "[Image understanding not available]"
 
-    def _extract_prompt(self, inputs: List[Any]) -> str:
+    def _extract_prompt(self, inputs: list[Any]) -> str:
         for inp in inputs:
             if isinstance(inp, dict) and inp.get("type") == "text":
                 return inp["content"]

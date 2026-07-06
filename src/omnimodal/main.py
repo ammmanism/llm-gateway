@@ -3,33 +3,36 @@ OmniModal FastAPI Application
 """
 
 import asyncio
-import uuid
 import logging
+import uuid
 from contextlib import asynccontextmanager
-from typing import Optional, List, Dict, Any
+from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, BackgroundTasks
-from fastapi.responses import StreamingResponse, JSONResponse
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .config import settings
-from .gateway.router import SemanticRouter
-from .gateway.cost_optimizer import CostOptimizer
-from .gateway.fallback import FallbackChain
-from .modalities.text import TextAdapter
-from .modalities.image import ImageAdapter
-from .modalities.audio import AudioAdapter
-from .modalities.video import VideoAdapter
-from .security.rbac import RBACMiddleware, require_role, Role
-from .middleware.rate_limit import RateLimitMiddleware
-from .middleware.pii_redaction import PIIRedactionMiddleware
-from .observability.metrics import MetricsCollector
-from .observability.tracing import setup_tracing
 from .core.experiments import ExperimentEngine
-from .core.green_ai import CarbonTracker, CarbonBudgetEnforcer
+from .core.green_ai import CarbonBudgetEnforcer, CarbonTracker
 from .core.prompt_registry import PromptRegistry
 from .core.schema_enforcer import JSONSchemaEnforcer
-from .exceptions import OmniModalError, RateLimitError, AuthenticationError, ProviderError
+from .exceptions import (
+    OmniModalError,
+    ProviderError,
+    RateLimitError,
+)
+from .gateway.cost_optimizer import CostOptimizer
+from .gateway.fallback import FallbackChain
+from .gateway.router import SemanticRouter
+from .middleware.pii_redaction import PIIRedactionMiddleware
+from .modalities.audio import AudioAdapter
+from .modalities.image import ImageAdapter
+from .modalities.text import TextAdapter
+from .modalities.video import VideoAdapter
+from .observability.metrics import MetricsCollector
+from .observability.tracing import setup_tracing
+from .security.rbac import RBACMiddleware, Role, require_role
 
 logger = logging.getLogger(__name__)
 
@@ -104,20 +107,20 @@ class ModalityInput(BaseModel):
     type: str = Field(..., description="text | image | audio | video")
     content: str = Field(..., description="URL, base64, or text content")
     role: str = "input"
-    mime_type: Optional[str] = None
+    mime_type: str | None = None
 
 class GenerationRequest(BaseModel):
-    request_id: Optional[str] = None
+    request_id: str | None = None
     inputs: list[ModalityInput]
     output_modality: str = Field(..., description="text | image | audio | video")
     quality: str = "standard"
-    max_cost_usd: Optional[float] = None
-    max_latency_ms: Optional[int] = None
+    max_cost_usd: float | None = None
+    max_latency_ms: int | None = None
     stream: bool = False
     metadata: dict = Field(default_factory=dict)
-    experiment_id: Optional[str] = None
-    user_id: Optional[str] = None
-    schema: Optional[Dict] = None
+    experiment_id: str | None = None
+    user_id: str | None = None
+    schema: dict | None = None
     enable_watermark: bool = False
 
 class GenerationResponse(BaseModel):
@@ -134,7 +137,7 @@ class FusionRequest(BaseModel):
     inputs: list[ModalityInput]
     output_modality: str
     operation: str = "fuse"
-    duration_seconds: Optional[int] = None
+    duration_seconds: int | None = None
     constraints: dict = Field(default_factory=dict)
 
 # ─────────────────────────────────────────────
@@ -332,7 +335,7 @@ class ExperimentCreateRequest(BaseModel):
     name: str
     hypothesis: str
     metric: str
-    variants: List[Dict]
+    variants: list[dict]
     min_samples: int = 100
 
 class ExperimentResponse(BaseModel):
@@ -383,13 +386,13 @@ class PromptCreateRequest(BaseModel):
     name: str
     description: str
     initial_prompt: str
-    variables: List[str] = []
-    model_config: Dict = {}
+    variables: list[str] = []
+    model_config: dict = {}
 
 class PromptRenderRequest(BaseModel):
     template_name: str
-    variables: Dict[str, Any]
-    version_id: Optional[str] = None
+    variables: dict[str, Any]
+    version_id: str | None = None
 
 @app.post("/v1/prompts")
 async def create_prompt(request: PromptCreateRequest, req: Request):
@@ -435,7 +438,7 @@ async def carbon_report(req: Request):
 # ─────────────────────────────────────────────
 
 @app.post("/v1/validate")
-async def validate_output(body: Dict, req: Request):
+async def validate_output(body: dict, req: Request):
     if not req.app.state.schema_enforcer:
         raise HTTPException(503, "Schema enforcer not enabled")
     output = body.get("output", "")

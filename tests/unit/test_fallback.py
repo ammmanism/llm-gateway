@@ -1,7 +1,7 @@
-import pytest
-import asyncio
 from unittest.mock import MagicMock
-from omnimodal.gateway.fallback import CircuitBreaker, FallbackChain, CircuitState
+
+from omnimodal.gateway.fallback import CircuitBreaker, CircuitState
+
 
 class TestCircuitBreaker:
     def test_initial_state_closed(self):

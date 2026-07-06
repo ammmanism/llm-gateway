@@ -1,11 +1,13 @@
+import asyncio
 import hashlib
 import logging
-import time
 import math
-from typing import Dict, List, Optional, Any, Callable
+import time
+from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
-from collections import defaultdict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -22,13 +24,13 @@ class ExperimentStatus(Enum):
 class Variant:
     id: str
     name: str
-    config: Dict[str, Any]
+    config: dict[str, Any]
     traffic_percentage: float = 0.5
     impressions: int = 0
     conversions: int = 0
     total_latency_ms: float = 0
     total_cost: float = 0
-    scores: List[float] = field(default_factory=list)
+    scores: list[float] = field(default_factory=list)
 
 
 @dataclass
@@ -37,26 +39,26 @@ class Experiment:
     name: str
     hypothesis: str
     metric: str
-    variants: List[Variant]
+    variants: list[Variant]
     status: ExperimentStatus = ExperimentStatus.DRAFT
     min_samples: int = 100
     confidence_level: float = 0.95
     created_at: float = field(default_factory=time.time)
-    ended_at: Optional[float] = None
+    ended_at: float | None = None
 
 
 class ExperimentEngine:
     def __init__(self):
-        self.experiments: Dict[str, Experiment] = {}
-        self.user_assignments: Dict[str, Dict[str, str]] = defaultdict(dict)
-        self._results_cache: Dict[str, Any] = {}
+        self.experiments: dict[str, Experiment] = {}
+        self.user_assignments: dict[str, dict[str, str]] = defaultdict(dict)
+        self._results_cache: dict[str, Any] = {}
 
     def create_experiment(
         self,
         name: str,
         hypothesis: str,
         metric: str,
-        variants: List[Dict],
+        variants: list[dict],
         min_samples: int = 100
     ) -> Experiment:
         exp_id = hashlib.sha256(f"{name}:{time.time()}".encode()).hexdigest()[:12]
@@ -86,7 +88,7 @@ class ExperimentEngine:
         experiment_id: str,
         user_id: str,
         allow_shadow: bool = False
-    ) -> Optional[Variant]:
+    ) -> Variant | None:
         exp = self.experiments.get(experiment_id)
         if not exp or exp.status != ExperimentStatus.RUNNING:
             return None
@@ -139,7 +141,7 @@ class ExperimentEngine:
                 result = await treatment_fn()
             self._record_result(experiment_id, variant, True, time.time() - start)
             return result
-        except Exception as e:
+        except Exception:
             self._record_result(experiment_id, variant, False, time.time() - start)
             raise
 
@@ -163,7 +165,7 @@ class ExperimentEngine:
             variant.conversions += 1
         variant.total_latency_ms += latency * 1000
 
-    def analyze_experiment(self, experiment_id: str) -> Dict[str, Any]:
+    def analyze_experiment(self, experiment_id: str) -> dict[str, Any]:
         exp = self.experiments.get(experiment_id)
         if not exp:
             return {"error": "Experiment not found"}
@@ -253,35 +255,7 @@ class ExperimentEngine:
             "action": "promoted",
             "variant": winner_name,
             "new_traffic": winner.traffic_percentage
-        }
-
-
-import asyncio
-
-    def check_guardrails(self, exp_id: str, max_cost_regression: float = 0.1) -> bool:
-        exp = self.experiments.get(exp_id)
-        if not exp or len(exp.variants) < 2:
-            return True
-        t = exp.variants[1]; c = exp.variants[0]
-        if c.total_cost > 0 and t.total_cost > 0:
-            if t.total_cost / c.total_cost > 1 + max_cost_regression:
-                return False
-        return True
-
-    async def get_metadata(self, exp_id: str) -> Dict:
-        exp = self.experiments.get(exp_id)
-        if not exp:
-            return {}
-        return {"name": exp_id, "variants": len(exp.variants), "total_cost": sum(v.total_cost for v in exp.variants), "total_latency": sum(v.total_latency for v in exp.variants)}
-
-    def prune_stale(self, max_age_days: int = 30) -> int:
-        import time
-        now = time.time()
-        threshold = now - (max_age_days * 86400)
-        stale = [eid for eid, e in self.experiments.items() if getattr(e, "created_at", 0) < threshold]
-        for eid in stale:
-            del self.experiments[eid]
-        return len(stale)
+}
 
     def check_guardrails(self, exp_id: str, max_cost_regression: float = 0.1) -> bool:
         exp = self.experiments.get(exp_id)
@@ -293,6 +267,14 @@ import asyncio
             if t.total_cost / c.total_cost > 1 + max_cost_regression:
                 return False
         return True
+
+    def prune_stale(self, max_age_days: int = 30) -> int:
+        now = time.time()
+        threshold = now - (max_age_days * 86400)
+        stale = [eid for eid, e in self.experiments.items() if getattr(e, "created_at", 0) < threshold]
+        for eid in stale:
+            del self.experiments[eid]
+        return len(stale)
 
     async def get_metadata(self, exp_id: str) -> dict:
         exp = self.experiments.get(exp_id)

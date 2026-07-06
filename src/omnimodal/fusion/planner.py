@@ -3,7 +3,8 @@ Fusion Planner
 Creates Directed Acyclic Graphs of fusion operations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import Any
+
 from omnimodal.fusion.dag import FusionStage, FusionStageType
 from omnimodal.fusion.engine import FusionDAG
 
@@ -12,11 +13,11 @@ class FusionPlanner:
     """
     Automatically plans optimal fusion pipelines.
     """
-    
+
     def __init__(self):
         self.transformation_rules = self._init_rules()
-    
-    def _init_rules(self) -> Dict[str, List[str]]:
+
+    def _init_rules(self) -> dict[str, list[str]]:
         """Define allowed modality transformations."""
         return {
             "text": ["text", "image", "audio"],
@@ -24,12 +25,12 @@ class FusionPlanner:
             "audio": ["text", "audio"],
             "video": ["text", "image", "audio", "video"],
         }
-    
+
     def plan(
         self,
-        inputs: List[Dict[str, Any]],
+        inputs: list[dict[str, Any]],
         output_modality: str,
-        constraints: Optional[Dict] = None
+        constraints: dict | None = None
     ) -> FusionDAG:
         """
         Create an optimal fusion DAG.
@@ -37,28 +38,28 @@ class FusionPlanner:
         constraints = constraints or {}
         # Convert dictionary inputs to list of types
         input_modalities = [inp.get("type", "text") if isinstance(inp, dict) else getattr(inp, "type", "text") for inp in inputs]
-        
+
         # Simple case: direct generation
         if len(input_modalities) == 1 and input_modalities[0] == output_modality:
             return self._plan_direct(inputs, output_modality, constraints)
-        
+
         # Complex case: multimodal fusion
         if output_modality == "video" and "image" in input_modalities:
             return self._plan_image_to_video(inputs, constraints)
-        
+
         if output_modality == "text" and "video" in input_modalities:
             return self._plan_video_to_text(inputs, constraints)
-        
+
         if output_modality == "multimodal":
             return self._plan_multimodal_output(inputs, constraints)
-        
+
         # Generic plan
         return self._plan_generic(inputs, output_modality, constraints)
-    
+
     def _plan_direct(self, inputs, output_modality, constraints) -> FusionDAG:
         """Single modality direct generation."""
         adapter_map = {"text": "text", "image": "image", "audio": "audio", "video": "video"}
-        
+
         return FusionDAG(
             stages=[
                 FusionStage(
@@ -74,7 +75,7 @@ class FusionPlanner:
             inputs=inputs,
             output_modality=output_modality
         )
-    
+
     def _plan_image_to_video(self, inputs, constraints) -> FusionDAG:
         """Plan: Image + Text -> Video."""
         return FusionDAG(
@@ -105,7 +106,7 @@ class FusionPlanner:
             inputs=inputs,
             output_modality="video"
         )
-    
+
     def _plan_video_to_text(self, inputs, constraints) -> FusionDAG:
         """Plan: Video -> Text (understanding)."""
         return FusionDAG(
@@ -161,7 +162,7 @@ class FusionPlanner:
             inputs=inputs,
             output_modality="text"
         )
-    
+
     def _plan_multimodal_output(self, inputs, constraints) -> FusionDAG:
         """Plan for generating multiple output modalities."""
         return FusionDAG(
@@ -197,7 +198,7 @@ class FusionPlanner:
             inputs=inputs,
             output_modality="multimodal"
         )
-    
+
     def _plan_generic(self, inputs, output_modality, constraints) -> FusionDAG:
         """Fallback generic planner."""
         return FusionDAG(

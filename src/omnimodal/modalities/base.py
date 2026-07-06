@@ -3,8 +3,9 @@ Base Modality Adapter
 """
 
 from abc import ABC, abstractmethod
-from typing import List, Any, Optional
 from dataclasses import dataclass
+from typing import Any
+
 
 @dataclass
 class ModalityResponse:
@@ -19,12 +20,12 @@ class BaseModalityAdapter(ABC):
     """Abstract base class for all modality adapters."""
 
     @abstractmethod
-    async def generate(self, inputs: List[Any], provider: str = "openai", **kwargs) -> ModalityResponse:
+    async def generate(self, inputs: list[Any], provider: str = "openai", **kwargs) -> ModalityResponse:
         """Generate output from inputs."""
         pass
 
     @abstractmethod
-    async def generate_stream(self, inputs: List[Any], **kwargs):
+    async def generate_stream(self, inputs: list[Any], **kwargs):
         """Stream generation."""
         pass
 

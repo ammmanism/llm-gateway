@@ -3,10 +3,8 @@ OmniModal CLI - Command-line interface for the unified gateway.
 """
 
 import asyncio
-import sys
 import json
 from pathlib import Path
-from typing import Optional
 
 import click
 import structlog
@@ -84,7 +82,7 @@ def cli(ctx, api_key, verbose):
     ctx.ensure_object(dict)
     ctx.obj["api_key"] = api_key
     ctx.obj["verbose"] = verbose
-    
+
     if verbose:
         structlog.configure(wrapper_class=structlog.make_filtering_bound_logger(10))
 
@@ -100,7 +98,7 @@ def generate(ctx, prompt, modality, quality, output, max_cost):
     """Generate content from a prompt."""
     async def _generate():
         client = MockOmniClient(api_key=ctx.obj["api_key"])
-        
+
         with click.progressbar(length=1, label=f"Generating {modality}...") as bar:
             result = await client.generate(
                 prompt=prompt,
@@ -109,15 +107,15 @@ def generate(ctx, prompt, modality, quality, output, max_cost):
                 max_cost_usd=max_cost
             )
             bar.update(1)
-        
+
         if output:
             Path(output).write_bytes(result.content if isinstance(result.content, bytes) else result.content.encode())
             click.echo(f"Success: Saved to {output}")
         else:
             click.echo(result.content)
-        
+
         click.echo(f"Cost: ${result.cost_usd:.4f} | Latency: {result.latency_ms}ms")
-    
+
     asyncio.run(_generate())
 
 
@@ -130,25 +128,25 @@ def transcribe(ctx, audio_file, language, output):
     """Transcribe audio to text."""
     async def _transcribe():
         client = MockOmniClient(api_key=ctx.obj["api_key"])
-        
+
         with open(audio_file, "rb") as f:
             audio_data = f.read()
-        
+
         click.echo("Transcribing...")
         result = await client.transcribe(audio_data, language=language)
-        
+
         output_data = {
             "text": result.content,
             "provider": "openai",
             "cost": result.cost_usd
         }
-        
+
         if output:
             Path(output).write_text(json.dumps(output_data, indent=2))
             click.echo(f"Success: Saved to {output}")
         else:
             click.echo(result.content)
-    
+
     asyncio.run(_transcribe())
 
 
@@ -162,26 +160,26 @@ def fuse(ctx, input, output_modality, operation, duration):
     """Fuse multiple modalities into one output."""
     async def _fuse():
         client = MockOmniClient(api_key=ctx.obj["api_key"])
-        
+
         inputs = []
         for item in input:
             if ":" not in item:
                 raise click.BadParameter(f"Input must be in format type:content, got {item}")
             type_, content = item.split(":", 1)
             inputs.append({"type": type_, "content": content})
-        
+
         click.echo(f"Fusing {len(inputs)} inputs into {output_modality}...")
-        
+
         result = await client.fuse(
             inputs=inputs,
             output=output_modality,
             operation=operation,
             duration_seconds=duration
         )
-        
-        click.echo(f"Fusion complete!")
+
+        click.echo("Fusion complete!")
         click.echo(f"Providers used: {', '.join(result.providers)}")
-    
+
     asyncio.run(_fuse())
 
 
@@ -193,14 +191,14 @@ def health(ctx, provider):
     async def _health():
         client = MockOmniClient()
         status = await client.health()
-        
+
         click.echo(f"OmniModal v{status['version']}")
         click.echo(f"Status: {status['status']}")
-        
+
         for name, info in status.get("providers", {}).items():
             icon = "ENABLED" if info["enabled"] else "DISABLED"
             click.echo(f"  [{icon}] {name}: {', '.join(info['regions'])}")
-    
+
     asyncio.run(_health())
 
 
@@ -212,14 +210,14 @@ def costs(ctx, days):
     async def _costs():
         client = MockOmniClient(api_key=ctx.obj["api_key"])
         report = await client.get_cost_report(days=days)
-        
+
         click.echo(f"Cost Report (Last {days} days)")
         click.echo(f"Total Optimizations: {report['total_optimizations']}")
         click.echo(f"Cache Hits: {report['cache_hits']}")
         click.echo(f"Model Downgrades: {report['model_downgrades']}")
         click.echo(f"Total Saved: ${report['total_saved_usd']:.2f}")
         click.echo(f"Cache Hit Rate: {report['cache_hit_rate']:.1%}")
-    
+
     asyncio.run(_costs())
 
 
@@ -309,7 +307,7 @@ def carbon(ctx):
         click.echo(f"Total Energy: {report['total_energy_kwh']} kWh")
         click.echo(f"Equivalent Car KM: {report['equivalent_car_km']}")
         click.echo(f"Equivalent Tree Hours: {report['equivalent_tree_hours']}")
-        click.echo(f"\nRecommendations:")
+        click.echo("\nRecommendations:")
         for rec in report["recommendations"]:
             click.echo(f"  - {rec}")
 

@@ -2,10 +2,9 @@
 Budget Alerts
 """
 
-import yaml
 import logging
-from typing import Dict, List, Any
-from ..config import settings
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +13,7 @@ class BudgetAlertManager:
         self.config = self._load_config(config_path)
         self.spend = {}  # period -> total spend
 
-    def _load_config(self, path: str) -> List[Dict]:
+    def _load_config(self, path: str) -> list[dict]:
         try:
             with open(path) as f:
                 return yaml.safe_load(f).get("alerts", [])
@@ -31,7 +30,7 @@ class BudgetAlertManager:
             # Check threshold
             pass
 
-    def trigger_alert(self, alert: Dict):
+    def trigger_alert(self, alert: dict):
         actions = alert.get("action", "").split(",")
         for action in actions:
             if action == "slack":

@@ -3,7 +3,7 @@ Cost Tracker
 """
 
 import logging
-from typing import Dict, Any
+
 from .metrics import REQUEST_COST
 
 logger = logging.getLogger(__name__)

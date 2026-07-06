@@ -5,8 +5,10 @@ Audit Logging
 import json
 import logging
 import time
-from typing import Any, Dict
+from typing import Any
+
 from fastapi import Request
+
 from ..config import settings
 
 logger = logging.getLogger("audit")

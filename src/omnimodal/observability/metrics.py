@@ -2,9 +2,8 @@
 Prometheus Metrics
 """
 
-from prometheus_client import Counter, Histogram, Gauge, Info
-import time
-from functools import wraps
+
+from prometheus_client import Counter, Gauge, Histogram, Info
 
 APP_INFO = Info("omnimodal_build", "Build information")
 APP_INFO.info({"version": "1.0.0", "python": "3.11"})

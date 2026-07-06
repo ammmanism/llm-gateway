@@ -4,21 +4,21 @@ OmniModal Configuration
 
 import os
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+
 import yaml
-import json
+
 
 @dataclass
 class ProviderConfig:
     name: str
     api_key_env: str
-    base_url: Optional[str] = None
+    base_url: str | None = None
     timeout_seconds: float = 30.0
     max_retries: int = 3
     rate_limit_rps: float = 10.0
     enabled: bool = True
-    regions: List[str] = field(default_factory=lambda: ["us-east"])
-    cost_model: Dict = field(default_factory=dict)
+    regions: list[str] = field(default_factory=lambda: ["us-east"])
+    cost_model: dict = field(default_factory=dict)
 
     @property
     def api_key(self) -> str:
@@ -48,7 +48,7 @@ class RoutingConfig:
 @dataclass
 class ObservabilityConfig:
     enable_opentelemetry: bool = True
-    jaeger_endpoint: Optional[str] = None
+    jaeger_endpoint: str | None = None
     prometheus_port: int = 9090
     log_level: str = "INFO"
     enable_cost_tracking: bool = True
@@ -97,7 +97,7 @@ class OmniModalConfig:
     version: str = "1.0.0"
     debug: bool = False
 
-    providers: Dict[str, ProviderConfig] = field(default_factory=dict)
+    providers: dict[str, ProviderConfig] = field(default_factory=dict)
     cache: CacheConfig = field(default_factory=CacheConfig)
     routing: RoutingConfig = field(default_factory=RoutingConfig)
     observability: ObservabilityConfig = field(default_factory=ObservabilityConfig)

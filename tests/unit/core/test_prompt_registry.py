@@ -1,6 +1,7 @@
-import pytest
 import tempfile
-import os
+
+import pytest
+
 from omnimodal.core.prompt_registry import PromptRegistry, PromptStatus
 
 

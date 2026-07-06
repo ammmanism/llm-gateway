@@ -1,8 +1,10 @@
-import pytest
-import pytest_asyncio
 from unittest.mock import AsyncMock
+
+import pytest_asyncio
+
 from omnimodal.gateway.cost_optimizer import CostOptimizer
 from omnimodal.gateway.router import RouteDecision
+
 
 class TestCostOptimizer:
     @pytest_asyncio.fixture

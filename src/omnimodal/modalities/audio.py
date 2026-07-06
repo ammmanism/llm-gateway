@@ -4,12 +4,13 @@ Audio Modality Adapter
 
 import base64
 import logging
-from typing import List, Any, Optional
 from dataclasses import dataclass
+from typing import Any
+
 import openai
 
-from .base import BaseModalityAdapter, ModalityResponse
 from ..exceptions import ProviderError
+from .base import BaseModalityAdapter, ModalityResponse
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,7 @@ class AudioAdapter(BaseModalityAdapter):
             self.clients["openai"] = openai.AsyncOpenAI()
         # ElevenLabs client initialized on-demand
 
-    async def generate(self, inputs: List[Any], provider: str = "openai", **kwargs) -> AudioResponse:
+    async def generate(self, inputs: list[Any], provider: str = "openai", **kwargs) -> AudioResponse:
         prompt = self._extract_prompt(inputs)
         operation = kwargs.get("operation", "synthesize")
 
@@ -124,12 +125,12 @@ class AudioAdapter(BaseModalityAdapter):
             duration_seconds=len(text) / 15
         )
 
-    async def generate_stream(self, inputs: List[Any], **kwargs):
+    async def generate_stream(self, inputs: list[Any], **kwargs):
         # For streaming, yield chunks of audio (simplified)
         result = await self.generate(inputs, **kwargs)
         yield result.content
 
-    def _extract_prompt(self, inputs: List[Any]) -> str:
+    def _extract_prompt(self, inputs: list[Any]) -> str:
         for inp in inputs:
             if isinstance(inp, dict) and inp.get("type") == "text":
                 return inp["content"]

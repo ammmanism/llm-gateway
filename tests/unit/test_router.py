@@ -1,6 +1,7 @@
-import pytest
 import pytest_asyncio
-from omnimodal.gateway.router import SemanticRouter, QualityTier, RouteDecision
+
+from omnimodal.gateway.router import RouteDecision, SemanticRouter
+
 
 class TestSemanticRouter:
     @pytest_asyncio.fixture

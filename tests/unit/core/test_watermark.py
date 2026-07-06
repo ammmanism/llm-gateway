@@ -1,6 +1,13 @@
-import pytest
 import time
-from omnimodal.core.watermark import Watermark, TextWatermarker, ImageWatermarker, WatermarkManager
+
+import pytest
+
+from omnimodal.core.watermark import (
+    ImageWatermarker,
+    TextWatermarker,
+    Watermark,
+    WatermarkManager,
+)
 
 
 class TestTextWatermarker:
@@ -40,8 +47,9 @@ class TestTextWatermarker:
 class TestImageWatermarker:
     def test_embed_and_extract(self):
         pytest.importorskip("PIL")
-        from PIL import Image
         import io
+
+        from PIL import Image
 
         img = Image.new('RGB', (100, 100), color='red')
         buf = io.BytesIO()

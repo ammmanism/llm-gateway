@@ -1,5 +1,5 @@
+import asyncio
 import logging
-from typing import Dict, Optional
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -56,7 +56,7 @@ class CarbonTracker:
         model: str,
         tokens_input: int,
         tokens_output: int,
-        region: Optional[str] = None
+        region: str | None = None
     ) -> CarbonEstimate:
         region = region or self.default_region
         intensity = CARBON_INTENSITY.get(region, 400)
@@ -87,7 +87,7 @@ class CarbonTracker:
         self.total_energy_joules += estimate.energy_joules
         self.request_count += 1
 
-    def get_report(self) -> Dict:
+    def get_report(self) -> dict:
         return {
             "total_co2_grams": round(self.total_co2_grams, 2),
             "total_co2_kg": round(self.total_co2_grams / 1000, 4),
@@ -125,7 +125,7 @@ class CarbonTracker:
 class CarbonBudgetEnforcer:
     def __init__(self, max_grams_per_day: float = 1000.0):
         self.max_grams = max_grams_per_day
-        self.daily_usage: Dict[str, float] = {}
+        self.daily_usage: dict[str, float] = {}
 
     def check_budget(self, user_id: str, estimated_grams: float) -> bool:
         current = self.daily_usage.get(user_id, 0)
@@ -137,7 +137,6 @@ class CarbonBudgetEnforcer:
     def reset_daily(self):
         self.daily_usage.clear()
 
-    import asyncio
     async def auto_reset_daily(self):
         while True:
             await asyncio.sleep(86400)
@@ -147,29 +146,6 @@ class CarbonBudgetEnforcer:
         try:
             from prometheus_client import Counter
             c = Counter("carbon_footprint_grams", "Total carbon footprint in grams")
-            c.inc(self.total_carbon)  # type: ignore
-        except ImportError:
-            pass
-
-    def log_carbon_trace(self, trace_id: str) -> Dict:
-        return {"trace_id": trace_id, "carbon_g": self.total_carbon, "budget_g": self.carbon_budget, "remaining_g": self.budget_remaining}
-
-    "gpt-4.1": 0.4,
-    "gpt-4.1-mini": 0.15,
-    "gemini-2.5-flash": 0.08,
-    "gemini-2.5-pro": 0.35,
-    "claude-4-sonnet": 0.3,
-    "claude-4-opus": 0.7,
-
-    async def auto_reset_daily(self):
-        while True:
-            await asyncio.sleep(86400)
-            self.reset_daily()
-
-    def carbon_prometheus_metric(self):
-        try:
-            from prometheus_client import Counter
-            c = Counter("carbon_footprint_grams", "Total carbon footprint in grams")
-            c.inc(self.total_carbon)
+            c.inc(self.total_co2_grams)
         except ImportError:
             pass

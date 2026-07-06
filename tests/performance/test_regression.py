@@ -1,8 +1,7 @@
-import pytest
-import time
 import asyncio
-import statistics
-from unittest.mock import AsyncMock
+import time
+
+import pytest
 
 
 class TestLatencyRegression:

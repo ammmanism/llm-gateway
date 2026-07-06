@@ -1,5 +1,4 @@
-import pytest
-from omnimodal.core.green_ai import CarbonTracker, CarbonBudgetEnforcer
+from omnimodal.core.green_ai import CarbonBudgetEnforcer, CarbonTracker
 
 
 class TestCarbonTracker:

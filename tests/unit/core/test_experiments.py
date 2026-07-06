@@ -1,5 +1,3 @@
-import pytest
-import time
 from omnimodal.core.experiments import ExperimentEngine, ExperimentStatus
 
 
@@ -112,7 +110,6 @@ class TestExperimentEngine:
         async def treatment():
             return "treatment-result"
 
-        import asyncio
         result = asyncio.run(
             engine.run_with_experiment(exp.id, "shadow-user", control, treatment, shadow=True)
         )

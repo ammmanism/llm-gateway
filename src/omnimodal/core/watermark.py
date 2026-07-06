@@ -1,6 +1,5 @@
 import hashlib
 import logging
-from typing import Optional, Dict, List, Tuple
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -47,7 +46,7 @@ class TextWatermarker:
         sentences[0] = ''.join(watermarked_words)
         return '. '.join(sentences)
 
-    def extract(self, text: str) -> Optional[str]:
+    def extract(self, text: str) -> str | None:
         found = []
         for char in text:
             if char == self.ZERO_WIDTH['0']:
@@ -75,8 +74,9 @@ class TextWatermarker:
 class ImageWatermarker:
     def embed(self, image_bytes: bytes, watermark: Watermark) -> bytes:
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             img = Image.open(io.BytesIO(image_bytes))
             pixels = list(img.getdata())
@@ -121,10 +121,11 @@ class ImageWatermarker:
             logger.warning("PIL not installed, skipping image watermark")
             return image_bytes
 
-    def extract(self, image_bytes: bytes) -> Optional[str]:
+    def extract(self, image_bytes: bytes) -> str | None:
         try:
-            from PIL import Image
             import io
+
+            from PIL import Image
 
             img = Image.open(io.BytesIO(image_bytes))
             pixels = list(img.getdata())
@@ -172,7 +173,7 @@ class WatermarkManager:
             return self.image.embed(content, watermark)
         return content
 
-    def extract(self, content: bytes, content_type: str) -> Optional[str]:
+    def extract(self, content: bytes, content_type: str) -> str | None:
         if content_type.startswith("text/"):
             text = content.decode('utf-8', errors='ignore')
             return self.text.extract(text)
@@ -180,7 +181,7 @@ class WatermarkManager:
             return self.image.extract(content)
         return None
 
-    def encode_file(self, input_path: str, output_path: str, watermark_text: str, key: Optional[str] = None) -> None:
+    def encode_file(self, input_path: str, output_path: str, watermark_text: str, key: str | None = None) -> None:
         from PIL import Image
         img = Image.open(input_path)
         wm = self.encode(watermark_text, key)

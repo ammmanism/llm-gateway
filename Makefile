@@ -27,6 +27,10 @@ docker-run:
 docker-down:
 	docker-compose down -v
 
+benchmark:
+	pip install pytest-benchmark
+	pytest tests/benchmarks/ -v --benchmark-only --benchmark-json=benchmark.json
+
 docs:
 	mkdocs serve
 

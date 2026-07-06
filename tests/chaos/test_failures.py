@@ -1,15 +1,16 @@
-import pytest
 import asyncio
 import random
-import time
 from unittest.mock import AsyncMock
-from omnimodal.core.deduplication import RequestCoalescer
+
+import pytest
+
 from omnimodal.core.concurrency import AdaptiveConcurrencyLimiter
-from omnimodal.core.schema_enforcer import JSONSchemaEnforcer
-from omnimodal.core.prompt_registry import PromptRegistry
+from omnimodal.core.deduplication import RequestCoalescer
 from omnimodal.core.experiments import ExperimentEngine
-from omnimodal.gateway.fallback import FallbackChain
+from omnimodal.core.prompt_registry import PromptRegistry
+from omnimodal.core.schema_enforcer import JSONSchemaEnforcer
 from omnimodal.gateway.circuit_breaker import CircuitBreaker
+from omnimodal.gateway.fallback import FallbackChain
 
 
 class TestChaosCircuitBreaker:

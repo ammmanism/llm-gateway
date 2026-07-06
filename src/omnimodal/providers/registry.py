@@ -2,22 +2,22 @@
 Provider Registry
 """
 
-from typing import Dict, Type
-from .openai import OpenAIProvider
 from .anthropic import AnthropicProvider
-from .google import GoogleProvider
-from .stability import StabilityProvider
-from .replicate import ReplicateProvider
-from .huggingface import HuggingFaceProvider
 from .aws_bedrock import AWSBedrockProvider
-from .mistral import MistralProvider
+from .google import GoogleProvider
+from .huggingface import HuggingFaceProvider
 from .local import LocalProvider
+from .mistral import MistralProvider
+from .openai import OpenAIProvider
+from .replicate import ReplicateProvider
+from .stability import StabilityProvider
+
 
 class ProviderRegistry:
     _providers = {}
 
     @classmethod
-    def register(cls, name: str, provider_class: Type):
+    def register(cls, name: str, provider_class: type):
         cls._providers[name] = provider_class
 
     @classmethod

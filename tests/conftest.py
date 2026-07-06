@@ -3,17 +3,15 @@ Pytest configuration and fixtures.
 """
 
 import asyncio
-import pytest
-import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock
 
-from omnimodal.gateway.router import SemanticRouter
+import pytest
+import pytest_asyncio
+
 from omnimodal.gateway.cost_optimizer import CostOptimizer
 from omnimodal.gateway.fallback import FallbackChain
-from omnimodal.modalities.text import TextAdapter
-from omnimodal.modalities.image import ImageAdapter
-from omnimodal.modalities.audio import AudioAdapter
-from omnimodal.modalities.video import VideoAdapter
+from omnimodal.gateway.router import SemanticRouter
+
 
 @pytest.fixture(scope="session")
 def event_loop():

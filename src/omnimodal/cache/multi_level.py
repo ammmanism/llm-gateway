@@ -3,16 +3,12 @@ Multi-Level Cache
 L1: In-memory (LRU), L2: Redis, L3: Object Storage
 """
 
-import asyncio
-import hashlib
 import json
-import time
 import logging
-from typing import Optional, Any
-from functools import lru_cache
+import time
+from typing import Any
 
 from ..config import settings
-from ..exceptions import CacheError
 
 logger = logging.getLogger(__name__)
 
@@ -95,7 +91,7 @@ class MultiLevelCache:
         self.hits = 0
         self.misses = 0
 
-    async def get(self, key: str) -> Optional[Any]:
+    async def get(self, key: str) -> Any | None:
         # L1
         value = self.l1.get(key)
         if value is not None:

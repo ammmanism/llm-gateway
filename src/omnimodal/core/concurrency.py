@@ -1,8 +1,7 @@
 import asyncio
-import time
 import logging
 import math
-from typing import Dict, Optional
+import time
 from dataclasses import dataclass, field
 
 logger = logging.getLogger(__name__)
@@ -28,8 +27,8 @@ class ConcurrencyWindow:
 
 class AdaptiveConcurrencyLimiter:
     def __init__(self):
-        self.windows: Dict[str, ConcurrencyWindow] = {}
-        self.locks: Dict[str, asyncio.Lock] = {}
+        self.windows: dict[str, ConcurrencyWindow] = {}
+        self.locks: dict[str, asyncio.Lock] = {}
 
     def _get_window(self, provider: str) -> ConcurrencyWindow:
         if provider not in self.windows:
@@ -37,7 +36,7 @@ class AdaptiveConcurrencyLimiter:
             self.locks[provider] = asyncio.Lock()
         return self.windows[provider]
 
-    async def acquire(self, provider: str, timeout: Optional[float] = None) -> bool:
+    async def acquire(self, provider: str, timeout: float | None = None) -> bool:
         window = self._get_window(provider)
         async with self.locks[provider]:
             if window.in_flight >= window.current_limit:
@@ -101,7 +100,7 @@ class AdaptiveConcurrencyLimiter:
 
         asyncio.create_task(_update())
 
-    def handle_rate_limit(self, provider: str, retry_after: Optional[float] = None):
+    def handle_rate_limit(self, provider: str, retry_after: float | None = None):
         window = self._get_window(provider)
 
         async def _backoff():
@@ -121,7 +120,7 @@ class AdaptiveConcurrencyLimiter:
 
         asyncio.create_task(_backoff())
 
-    def get_stats(self) -> Dict[str, Dict]:
+    def get_stats(self) -> dict[str, dict]:
         return {
             name: {
                 "limit": w.current_limit,
@@ -148,7 +147,7 @@ class AdaptiveConcurrencyLimiter:
             await asyncio.wait_for(self._semaphore.acquire(), timeout)
             self._current_load += 1
             return True
-        except asyncio.TimeoutError:
+        except TimeoutError:
             return False
 
     _base_backoff: float = 0.1

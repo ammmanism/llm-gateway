@@ -2,7 +2,7 @@
 Middleware: Authentication, rate limiting, and PII redaction.
 """
 
-from .rate_limit import RateLimitMiddleware
 from .pii_redaction import PIIRedactionMiddleware
+from .rate_limit import RateLimitMiddleware
 
 __all__ = ["RateLimitMiddleware", "PIIRedactionMiddleware"]

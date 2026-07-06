@@ -2,12 +2,13 @@
 Anomaly Detection
 """
 
+
 import numpy as np
-from typing import List, Optional
+
 
 class CostAnomalyDetector:
     def __init__(self, window: int = 100, z_threshold: float = 3.0):
-        self.history: List[float] = []
+        self.history: list[float] = []
         self.window = window
         self.threshold = z_threshold
 
@@ -27,7 +28,7 @@ class CostAnomalyDetector:
 
 class LatencyAnomalyDetector:
     def __init__(self, window: int = 100, z_threshold: float = 3.0):
-        self.history: List[float] = []
+        self.history: list[float] = []
         self.window = window
         self.threshold = z_threshold
 

@@ -1,9 +1,11 @@
 import json
-import yaml
 import logging
 import re
-from typing import Dict, Any, Optional, Type, Callable
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Any
+
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +14,7 @@ logger = logging.getLogger(__name__)
 class SchemaValidationResult:
     is_valid: bool
     errors: list
-    repaired_output: Optional[str] = None
+    repaired_output: str | None = None
     repair_attempts: int = 0
 
 
@@ -20,7 +22,7 @@ class JSONSchemaEnforcer:
     def __init__(self, max_repair_attempts: int = 3):
         self.max_repair_attempts = max_repair_attempts
 
-    def inject_schema(self, prompt: str, schema: Dict[str, Any]) -> str:
+    def inject_schema(self, prompt: str, schema: dict[str, Any]) -> str:
         schema_str = json.dumps(schema, indent=2)
         return f"""{prompt}
 
@@ -36,7 +38,7 @@ Rules:
 - Do not include fields not in the schema
 """
 
-    def extract_json(self, text: str) -> Optional[str]:
+    def extract_json(self, text: str) -> str | None:
         text = text.strip()
         if (text.startswith('{') and text.endswith('}')) or (text.startswith('[') and text.endswith(']')):
             return text
@@ -72,8 +74,8 @@ Rules:
     def validate(
         self,
         output: str,
-        schema: Dict[str, Any],
-        pydantic_model: Optional[Type] = None
+        schema: dict[str, Any],
+        pydantic_model: type | None = None
     ) -> SchemaValidationResult:
         json_str = self.extract_json(output)
         if not json_str:
@@ -108,7 +110,7 @@ Rules:
             repaired_output=json_str if errors else None
         )
 
-    def _validate_against_schema(self, data: Any, schema: Dict) -> list:
+    def _validate_against_schema(self, data: Any, schema: dict) -> list:
         errors = []
 
         if schema.get("type") == "object":
@@ -150,9 +152,9 @@ Rules:
         self,
         prompt: str,
         generate_fn: Callable,
-        schema: Dict[str, Any],
-        pydantic_model: Optional[Type] = None
-    ) -> Dict[str, Any]:
+        schema: dict[str, Any],
+        pydantic_model: type | None = None
+    ) -> dict[str, Any]:
         injected_prompt = self.inject_schema(prompt, schema)
 
         for attempt in range(self.max_repair_attempts):
@@ -175,7 +177,7 @@ Rules:
 
         raise ValueError("Failed to generate valid output after max retries")
 
-    def _repair_prompt(self, original: str, schema: Dict, bad_output: str) -> str:
+    def _repair_prompt(self, original: str, schema: dict, bad_output: str) -> str:
         return f"""Your previous response was invalid. Fix these errors and output ONLY valid JSON:
 
 Previous errors: {json.dumps(schema)}
@@ -185,7 +187,7 @@ Previous (invalid) output:
 
 Output valid JSON now:"""
 
-    def _apply_defaults(self, data: Dict, schema: Dict) -> Dict:
+    def _apply_defaults(self, data: dict, schema: dict) -> dict:
         result = dict(data)
         properties = schema.get("properties", {})
         for field, field_schema in properties.items():
@@ -193,42 +195,6 @@ Output valid JSON now:"""
                 result[field] = field_schema["default"]
         return result
 
-    def extract_yaml(self, text: str) -> Optional[str]:
-        try:
-            parsed = yaml.safe_load(text)
-            if isinstance(parsed, dict):
-                return json.dumps(parsed)
-        except yaml.YAMLError:
-            pass
-        return None
-
-    async def enforce_with_defaults(self, prompt: str, gen_fn: Callable, schema: Dict) -> Dict:
-        try:
-            return await self.enforce(prompt, gen_fn, schema)
-        except Exception:
-            return self._apply_defaults({}, schema)
-
-    async def enforce_dry_run(self, prompt: str, gen_fn: Callable, schema: Dict) -> Dict:
-        return self._apply_defaults({}, schema)
-
-    def validate_json(self, data: str, schema: Dict) -> bool:
-        import json
-        try:
-            parsed = json.loads(data)
-            return self._validate_dict(parsed, schema)
-        except (json.JSONDecodeError, TypeError):
-            return False
-
-    def _validate_dict(self, d: Dict, schema: Dict) -> bool:
-        for key, rules in schema.items():
-            if key not in d:
-                return False
-            if isinstance(rules, dict):
-                if not isinstance(d[key], dict) or not self._validate_dict(d[key], rules):
-                    return False
-        return True
-
-import yaml
     def extract_yaml(self, text: str) -> str | None:
         try:
             parsed = yaml.safe_load(text)
@@ -238,11 +204,30 @@ import yaml
             pass
         return None
 
-    async def enforce_with_defaults(self, prompt: str, gen_fn, schema: dict) -> dict:
+    async def enforce_with_defaults(self, prompt: str, gen_fn: Callable, schema: dict) -> dict:
         try:
             return await self.enforce(prompt, gen_fn, schema)
         except Exception:
             return self._apply_defaults({}, schema)
 
-    async def enforce_dry_run(self, prompt: str, gen_fn, schema: dict) -> dict:
+    async def enforce_dry_run(self, prompt: str, gen_fn: Callable, schema: dict) -> dict:
         return self._apply_defaults({}, schema)
+
+    def validate_json(self, data: str, schema: dict) -> bool:
+        import json
+        try:
+            parsed = json.loads(data)
+            return self._validate_dict(parsed, schema)
+        except (json.JSONDecodeError, TypeError):
+            return False
+
+    def _validate_dict(self, d: dict, schema: dict) -> bool:
+        for key, rules in schema.items():
+            if key not in d:
+                return False
+            if isinstance(rules, dict):
+                if not isinstance(d[key], dict) or not self._validate_dict(d[key], rules):
+                    return False
+        return True
+
+

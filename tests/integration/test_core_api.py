@@ -1,16 +1,23 @@
+
 import pytest
-from httpx import AsyncClient, ASGITransport
-from unittest.mock import AsyncMock, patch
+from httpx import ASGITransport, AsyncClient
+
 from omnimodal.config import settings
 
 
 @pytest.fixture
 def app():
-    from omnimodal.main import app, SemanticRouter, CostOptimizer, FallbackChain, MetricsCollector
     from omnimodal.core.experiments import ExperimentEngine
-    from omnimodal.core.green_ai import CarbonTracker, CarbonBudgetEnforcer
+    from omnimodal.core.green_ai import CarbonBudgetEnforcer, CarbonTracker
     from omnimodal.core.prompt_registry import PromptRegistry
     from omnimodal.core.schema_enforcer import JSONSchemaEnforcer
+    from omnimodal.main import (
+        CostOptimizer,
+        FallbackChain,
+        MetricsCollector,
+        SemanticRouter,
+        app,
+    )
 
     # Manually init state since ASGI transport doesn't trigger lifespan
     app.state.router = SemanticRouter()

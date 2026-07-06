@@ -4,15 +4,14 @@ Semantic Router
 
 import asyncio
 import logging
-from dataclasses import dataclass
-from typing import Dict, List, Optional, Any, Callable
-from enum import Enum
 import time
+from dataclasses import dataclass
+from enum import Enum
 
-from ..config import settings, ProviderConfig
-from ..exceptions import ProviderError
-from ..core.deduplication import RequestCoalescer
+from ..config import ProviderConfig, settings
 from ..core.concurrency import AdaptiveConcurrencyLimiter
+from ..core.deduplication import RequestCoalescer
+from ..exceptions import ProviderError
 from .circuit_breaker import CircuitBreaker, CircuitState
 
 logger = logging.getLogger(__name__)
@@ -39,16 +38,16 @@ class SemanticRouter:
     """
 
     def __init__(self):
-        self.provider_scores: Dict[str, Dict[str, float]] = {}
+        self.provider_scores: dict[str, dict[str, float]] = {}
         self.quality_matrix = self._init_quality_matrix()
         self.latency_estimates = self._init_latency_estimates()
         self.cost_models = self._init_cost_models()
-        self.circuit_breakers: Dict[str, CircuitBreaker] = {}
-        self.coalescer: Optional[RequestCoalescer] = None
-        self.concurrency_limiter: Optional[AdaptiveConcurrencyLimiter] = None
+        self.circuit_breakers: dict[str, CircuitBreaker] = {}
+        self.coalescer: RequestCoalescer | None = None
+        self.concurrency_limiter: AdaptiveConcurrencyLimiter | None = None
         self.load_weights()
 
-    def _init_quality_matrix(self) -> Dict[str, Dict[str, float]]:
+    def _init_quality_matrix(self) -> dict[str, dict[str, float]]:
         return {
             "openai": {"text": 9.5, "image": 8.5, "audio": 9.0, "video": 0.0},
             "anthropic": {"text": 9.3, "image": 0.0, "audio": 0.0, "video": 0.0},
@@ -61,7 +60,7 @@ class SemanticRouter:
             "mistral": {"text": 8.0, "image": 0.0, "audio": 0.0, "video": 0.0},
         }
 
-    def _init_latency_estimates(self) -> Dict[str, int]:
+    def _init_latency_estimates(self) -> dict[str, int]:
         return {
             "openai": 800,
             "anthropic": 1200,
@@ -74,7 +73,7 @@ class SemanticRouter:
             "mistral": 700,
         }
 
-    def _init_cost_models(self) -> Dict[str, Dict]:
+    def _init_cost_models(self) -> dict[str, dict]:
         return {
             "openai": {"text_input": 0.005, "text_output": 0.015, "image": 0.04, "audio": 0.006},
             "anthropic": {"text_input": 0.015, "text_output": 0.075},
@@ -115,11 +114,11 @@ class SemanticRouter:
         self,
         modality: str,
         quality: str = "standard",
-        cost_budget: Optional[float] = None,
-        latency_budget: Optional[int] = None,
+        cost_budget: float | None = None,
+        latency_budget: int | None = None,
         task_complexity: int = 5,
-        prompt: Optional[str] = None,
-        params: Optional[Dict] = None,
+        prompt: str | None = None,
+        params: dict | None = None,
     ) -> RouteDecision:
         if self.coalescer and prompt:
             cached = self.coalescer.exact_inflight.get(
@@ -198,7 +197,7 @@ class SemanticRouter:
             modality=modality
         )
 
-    def _get_candidates(self, modality: str, ignore_quality: bool = False) -> List[str]:
+    def _get_candidates(self, modality: str, ignore_quality: bool = False) -> list[str]:
         candidates = []
         for provider, scores in self.quality_matrix.items():
             if scores.get(modality, 0) > 0 or ignore_quality:
@@ -248,12 +247,12 @@ class SemanticRouter:
         elif state == "HALF_OPEN":
             cb.state = CircuitState.HALF_OPEN
 
-    def get_coalescer_stats(self) -> Dict:
+    def get_coalescer_stats(self) -> dict:
         if self.coalescer:
             return self.coalescer.get_stats()
         return {}
 
-    def get_concurrency_stats(self) -> Dict:
+    def get_concurrency_stats(self) -> dict:
         if self.concurrency_limiter:
             return self.concurrency_limiter.get_stats()
         return {}

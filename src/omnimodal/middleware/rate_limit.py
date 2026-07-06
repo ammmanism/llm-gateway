@@ -2,13 +2,12 @@
 Rate Limiting Middleware
 """
 
-import time
 import logging
-from typing import Optional, Callable
-from fastapi import Request, HTTPException
+import time
+from collections.abc import Callable
+
+from fastapi import HTTPException, Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from ..config import settings
-from ..exceptions import RateLimitError
 
 logger = logging.getLogger(__name__)
 

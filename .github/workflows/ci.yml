@@ -19,6 +19,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -e ".[all,dev]"
       - uses: pre-commit/action@v3.0.1
 
   # ─────────────────────────────────────────────
@@ -77,14 +79,16 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -e ".[all,benchmark]"
-      - run: pytest tests/benchmarks/ -v --benchmark-only
+      - run: pip install -e ".[all,dev]" pytest-benchmark
+      - run: pytest tests/benchmarks/ -v --benchmark-only --benchmark-json=benchmark.json
       - uses: benchmark-action/github-action-benchmark@v1
         with:
           tool: pytest
           output-file-path: benchmark.json
           github-token: ${{ secrets.GITHUB_TOKEN }}
           auto-push: true
+          alert-threshold: 110%
+          fail-on-alert: false
 
   # ─────────────────────────────────────────────
   # Docker Build
@@ -109,6 +113,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pypa/gh-action-pip-audit@v1.0.8
-        with:
-          inputs: requirements.txt
+      - name: Install dependencies
+        run: |
+          pip install -e ".[all,dev]"
+          pip install pip-audit
+      - name: Run pip-audit
+        run: pip-audit

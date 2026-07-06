@@ -4,9 +4,9 @@ Fusion DAG Execution
 
 import asyncio
 import logging
-from typing import List, Dict, Any, Optional
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -20,21 +20,21 @@ class FusionStageType(Enum):
 class FusionStage:
     id: str
     stage_type: FusionStageType
-    inputs: List[str]
+    inputs: list[str]
     output_modality: str
     operation: str
     adapter: str
-    params: Dict[str, Any] = field(default_factory=dict)
-    dependencies: List[str] = field(default_factory=list)
+    params: dict[str, Any] = field(default_factory=dict)
+    dependencies: list[str] = field(default_factory=list)
     can_parallelize: bool = False
 
 @dataclass
 class FusionDAG:
-    stages: List[FusionStage]
-    inputs: List[Dict[str, Any]]
+    stages: list[FusionStage]
+    inputs: list[dict[str, Any]]
     output_modality: str
 
-    async def execute(self, adapters: Dict[str, Any]) -> Any:
+    async def execute(self, adapters: dict[str, Any]) -> Any:
         results = {}
         completed = set()
 
@@ -71,7 +71,7 @@ class FusionDAG:
             "providers": list(set(r.get("provider", "unknown") for r in results.values() if isinstance(r, dict)))
         }
 
-    async def _execute_stage(self, stage: FusionStage, adapters: Dict, prior_results: Dict) -> Any:
+    async def _execute_stage(self, stage: FusionStage, adapters: dict, prior_results: dict) -> Any:
         adapter = adapters.get(stage.adapter)
         if not adapter:
             raise ValueError(f"Unknown adapter: {stage.adapter}")

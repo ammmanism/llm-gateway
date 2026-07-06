@@ -2,12 +2,11 @@
 PII Redaction Middleware
 """
 
-import re
 import logging
-from typing import List, Dict, Any, Tuple
+import re
+
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from ..config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -20,7 +19,7 @@ class PIIRedactor:
         "ip_address": re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b'),
     }
 
-    def redact(self, text: str, preserve_length: bool = True) -> Tuple[str, List[Dict]]:
+    def redact(self, text: str, preserve_length: bool = True) -> tuple[str, list[dict]]:
         redacted = text
         findings = []
         for pii_type, pattern in self.PATTERNS.items():
@@ -35,7 +34,7 @@ class PIIRedactor:
                 findings.append({"type": pii_type, "position": (start, end), "confidence": 1.0})
         return redacted, findings
 
-    def redact_multimodal(self, inputs: List[Dict]) -> List[Dict]:
+    def redact_multimodal(self, inputs: list[dict]) -> list[dict]:
         redacted_inputs = []
         for inp in inputs:
             if inp.get("type") == "text":

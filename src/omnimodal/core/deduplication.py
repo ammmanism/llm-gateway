@@ -1,10 +1,10 @@
 import asyncio
 import hashlib
 import logging
-import time
-from typing import Dict, Optional, Any, Callable
-from dataclasses import dataclass
 from collections import defaultdict
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -24,10 +24,10 @@ class RequestCoalescer:
         semantic_ttl_seconds: float = 5.0,
         max_batch_size: int = 10
     ):
-        self.exact_inflight: Dict[str, InFlightRequest] = {}
-        self.semantic_inflight: Dict[str, asyncio.Future] = {}
-        self.batch_queues: Dict[str, list] = defaultdict(list)
-        self.batch_timers: Dict[str, Optional[asyncio.Task]] = {}
+        self.exact_inflight: dict[str, InFlightRequest] = {}
+        self.semantic_inflight: dict[str, asyncio.Future] = {}
+        self.batch_queues: dict[str, list] = defaultdict(list)
+        self.batch_timers: dict[str, asyncio.Task | None] = {}
 
         self.exact_ttl = exact_ttl_seconds
         self.semantic_ttl = semantic_ttl_seconds
@@ -36,7 +36,7 @@ class RequestCoalescer:
         self.coalesced_count = 0
         self.batched_count = 0
 
-    def _hash_request(self, modality: str, prompt: str, params: Dict) -> str:
+    def _hash_request(self, modality: str, prompt: str, params: dict) -> str:
         key = f"{modality}:{prompt}:{sorted(params.items())}"
         return hashlib.sha256(key.encode()).hexdigest()[:16]
 
@@ -48,7 +48,7 @@ class RequestCoalescer:
         self,
         modality: str,
         prompt: str,
-        params: Dict,
+        params: dict,
         executor: Callable,
         priority: int = 0,
         use_semantic: bool = True
@@ -98,7 +98,7 @@ class RequestCoalescer:
     async def _cleanup_after_ttl(
         self,
         exact_hash: str,
-        semantic_hash: Optional[str],
+        semantic_hash: str | None,
         ttl: float
     ):
         await asyncio.sleep(ttl)
@@ -109,7 +109,7 @@ class RequestCoalescer:
     async def execute_batched(
         self,
         batch_key: str,
-        request: Dict,
+        request: dict,
         batch_executor: Callable[[list], list],
         max_wait_ms: float = 50.0
     ) -> Any:
@@ -159,7 +159,7 @@ class RequestCoalescer:
                 if not future.done():
                     future.set_exception(e)
 
-    def get_stats(self) -> Dict[str, int]:
+    def get_stats(self) -> dict[str, int]:
         return {
             "coalesced_requests": self.coalesced_count,
             "batched_requests": self.batched_count,
@@ -168,7 +168,7 @@ class RequestCoalescer:
             "active_batches": len([q for q in self.batch_queues.values() if q])
         }
 
-    _semantic_hash_cache: Dict[str, str] = {}
+    _semantic_hash_cache: dict[str, str] = {}
     def _cached_semantic_hash(self, modality: str, prompt: str) -> str:
         cache_key = f"{modality}:{prompt}"
         if cache_key not in self._semantic_hash_cache:

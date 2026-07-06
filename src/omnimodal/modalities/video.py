@@ -3,11 +3,11 @@ Video Modality Adapter
 """
 
 import logging
-from typing import List, Any, Optional, Dict
 from dataclasses import dataclass
+from typing import Any
 
-from .base import BaseModalityAdapter, ModalityResponse
 from ..exceptions import ProviderError
+from .base import BaseModalityAdapter, ModalityResponse
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class VideoAdapter(BaseModalityAdapter):
             self.clients["replicate"] = replicate.Client(os.getenv("REPLICATE_API_TOKEN"))
         # Runway/Pika clients on-demand
 
-    async def generate(self, inputs: List[Any], provider: str = "replicate", **kwargs) -> VideoResponse:
+    async def generate(self, inputs: list[Any], provider: str = "replicate", **kwargs) -> VideoResponse:
         prompt = self._extract_prompt(inputs)
         model = kwargs.get("model") or self._default_model(provider)
         duration = kwargs.get("duration", 4)
@@ -55,7 +55,7 @@ class VideoAdapter(BaseModalityAdapter):
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
-    async def _generate_replicate(self, prompt: str, model: str, duration: int, width: int, height: int, fps: int, inputs: List[Any]) -> VideoResponse:
+    async def _generate_replicate(self, prompt: str, model: str, duration: int, width: int, height: int, fps: int, inputs: list[Any]) -> VideoResponse:
         client = self.clients.get("replicate")
         if not client:
             raise ProviderError("Replicate client not initialized")
@@ -112,12 +112,12 @@ class VideoAdapter(BaseModalityAdapter):
             fps=fps
         )
 
-    async def generate_stream(self, inputs: List[Any], **kwargs):
+    async def generate_stream(self, inputs: list[Any], **kwargs):
         # Video streaming not supported yet; yield full video
         result = await self.generate(inputs, **kwargs)
         yield result.content
 
-    def _extract_prompt(self, inputs: List[Any]) -> str:
+    def _extract_prompt(self, inputs: list[Any]) -> str:
         for inp in inputs:
             if isinstance(inp, dict) and inp.get("type") == "text":
                 return inp["content"]

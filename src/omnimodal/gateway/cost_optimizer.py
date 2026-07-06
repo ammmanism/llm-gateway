@@ -3,15 +3,11 @@ Cost Optimizer
 """
 
 import hashlib
-import json
-import time
 import logging
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Any
 
-from ..config import settings
 from ..cache.multi_level import MultiLevelCache
-from ..exceptions import CacheError
 
 logger = logging.getLogger(__name__)
 
@@ -97,7 +93,7 @@ class CostOptimizer:
         key = f"{modality}:{prompt}:{quality}"
         return hashlib.sha256(key.encode()).hexdigest()
 
-    def get_savings_report(self) -> Dict[str, Any]:
+    def get_savings_report(self) -> dict[str, Any]:
         total = self.savings_tracker["cache_hits"] + \
                 self.savings_tracker["downgrades"] + \
                 self.savings_tracker["provider_arbitrage"]

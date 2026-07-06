@@ -2,10 +2,10 @@ import hashlib
 import json
 import logging
 import time
-from pathlib import Path
-from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -21,33 +21,33 @@ class PromptStatus(Enum):
 class PromptVersion:
     id: str
     content: str
-    template_variables: List[str] = field(default_factory=list)
-    model_config: Dict[str, Any] = field(default_factory=dict)
+    template_variables: list[str] = field(default_factory=list)
+    model_config: dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     created_by: str = "system"
     avg_latency_ms: float = 0.0
     avg_cost: float = 0.0
     success_rate: float = 1.0
     usage_count: int = 0
-    human_rating: Optional[float] = None
-    llm_judge_score: Optional[float] = None
+    human_rating: float | None = None
+    llm_judge_score: float | None = None
 
 
 @dataclass
 class PromptTemplate:
     name: str
     description: str
-    versions: List[PromptVersion] = field(default_factory=list)
-    active_version_id: Optional[str] = None
+    versions: list[PromptVersion] = field(default_factory=list)
+    active_version_id: str | None = None
     status: PromptStatus = PromptStatus.DRAFT
-    experiment_id: Optional[str] = None
+    experiment_id: str | None = None
 
 
 class PromptRegistry:
     def __init__(self, storage_path: str = "./prompts"):
         self.storage = Path(storage_path)
         self.storage.mkdir(exist_ok=True)
-        self.templates: Dict[str, PromptTemplate] = {}
+        self.templates: dict[str, PromptTemplate] = {}
         self._load_from_disk()
 
     def _load_from_disk(self):
@@ -56,7 +56,7 @@ class PromptRegistry:
                 data = json.load(f)
                 self.templates[data["name"]] = self._deserialize_template(data)
 
-    def _deserialize_template(self, data: Dict) -> PromptTemplate:
+    def _deserialize_template(self, data: dict) -> PromptTemplate:
         versions = [PromptVersion(**v) for v in data.get("versions", [])]
         return PromptTemplate(
             name=data["name"],
@@ -71,8 +71,8 @@ class PromptRegistry:
         name: str,
         description: str,
         initial_prompt: str,
-        variables: List[str],
-        model_config: Optional[Dict] = None
+        variables: list[str],
+        model_config: dict | None = None
     ) -> PromptTemplate:
         version_id = self._hash_prompt(initial_prompt)
         version = PromptVersion(
@@ -96,8 +96,8 @@ class PromptRegistry:
         self,
         template_name: str,
         new_prompt: str,
-        variables: Optional[List[str]] = None,
-        model_config: Optional[Dict] = None,
+        variables: list[str] | None = None,
+        model_config: dict | None = None,
         created_by: str = "system"
     ) -> PromptVersion:
         template = self.templates.get(template_name)
@@ -125,8 +125,8 @@ class PromptRegistry:
     def render(
         self,
         template_name: str,
-        variables: Dict[str, Any],
-        version_id: Optional[str] = None
+        variables: dict[str, Any],
+        version_id: str | None = None
     ) -> str:
         template = self.templates.get(template_name)
         if not template:
@@ -195,7 +195,7 @@ class PromptRegistry:
         template_name: str,
         v1_id: str,
         v2_id: str
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         template = self.templates[template_name]
         v1 = next(v for v in template.versions if v.id == v1_id)
         v2 = next(v for v in template.versions if v.id == v2_id)
@@ -228,7 +228,7 @@ class PromptRegistry:
         max_latency_regression: float = 0.2,
         max_cost_regression: float = 0.3,
         min_success_rate: float = 0.95
-    ) -> Optional[PromptVersion]:
+    ) -> PromptVersion | None:
         template = self.templates.get(template_name)
         if not template or len(template.versions) < 2:
             return None

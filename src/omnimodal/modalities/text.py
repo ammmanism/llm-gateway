@@ -2,16 +2,15 @@
 Text Modality Adapter
 """
 
-import asyncio
 import logging
-from typing import List, Optional, Any
 from dataclasses import dataclass
-import openai
-import anthropic
+from typing import Any
 
-from .base import BaseModalityAdapter, ModalityResponse
-from ..config import settings
+import anthropic
+import openai
+
 from ..exceptions import ProviderError
+from .base import BaseModalityAdapter, ModalityResponse
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +49,7 @@ class TextAdapter(BaseModalityAdapter):
             self.clients["anthropic"] = anthropic.AsyncAnthropic()
         # Other clients initialized on-demand
 
-    async def generate(self, inputs: List[Any], provider: str = "openai", **kwargs) -> TextResponse:
+    async def generate(self, inputs: list[Any], provider: str = "openai", **kwargs) -> TextResponse:
         prompt = self._extract_prompt(inputs)
         model = kwargs.get("model") or self._default_model(provider)
         max_tokens = kwargs.get("max_tokens", 4096)
@@ -192,7 +191,7 @@ class TextAdapter(BaseModalityAdapter):
             tokens_output=0
         )
 
-    async def generate_stream(self, inputs: List[Any], provider: str = "openai", **kwargs):
+    async def generate_stream(self, inputs: list[Any], provider: str = "openai", **kwargs):
         prompt = self._extract_prompt(inputs)
         client = self.clients.get(provider)
         if not client:
@@ -212,7 +211,7 @@ class TextAdapter(BaseModalityAdapter):
             result = await self.generate(inputs, provider=provider)
             yield result.content
 
-    def _extract_prompt(self, inputs: List[Any]) -> str:
+    def _extract_prompt(self, inputs: list[Any]) -> str:
         texts = []
         for inp in inputs:
             if isinstance(inp, dict) and inp.get("type") == "text":
