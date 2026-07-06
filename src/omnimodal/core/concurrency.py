@@ -150,3 +150,13 @@ class AdaptiveConcurrencyLimiter:
             return True
         except asyncio.TimeoutError:
             return False
+
+    _base_backoff: float = 0.1
+    _max_backoff: float = 10.0
+
+    async def _adaptive_backoff(self, attempt: int) -> float:
+        load = self.current_load
+        factor = 1.0 + (load / max(1, self.max_concurrent))
+        delay = min(self._base_backoff * (2 ** attempt) * factor, self._max_backoff)
+        await asyncio.sleep(delay)
+        return delay
