@@ -46,6 +46,6 @@ jobs:
           cache: npm
           cache-dependency-path: dashboard/package-lock.json
       - name: Install dashboard dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
       - name: Build dashboard
         run: npm run build
