@@ -1,7 +1,7 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
 import asyncio
-from typing import List
+from typing import List, Any
 from src.utils.logger import get_logger
 
 logger = get_logger(__name__)
@@ -10,6 +10,9 @@ class EmbeddingEngine:
     """Local embedding engine using sentence-transformers (zero API cost)"""
     
     _instance = None
+    model_name: str
+    model: Any
+    dimension: int
     
     def __new__(cls):
         if cls._instance is None:

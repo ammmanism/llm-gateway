@@ -56,8 +56,8 @@ app.include_router(dashboard_router)
 app.include_router(admin_router)
 
 # Initialize global managers
-tenant_manager = None
-usage_meter = None
+tenant_manager: TenantManager = None  # type: ignore
+usage_meter: UsageMeter = None  # type: ignore
 
 @app.on_event("startup")
 async def startup_event():
