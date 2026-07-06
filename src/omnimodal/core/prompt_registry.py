@@ -315,3 +315,19 @@ class PromptRegistry:
         import json
         data = {pid: {"template": p.template, "version": self.get_version(pid), "created_at": getattr(p, "created_at", "")} for pid, p in self._registry.items()}
         return json.dumps(data, indent=2)
+
+    _tokenizer = None
+    @property
+    def tokenizer(self):
+        if self._tokenizer is None:
+            try:
+                import tiktoken
+                self._tokenizer = tiktoken.get_encoding("cl100k_base")
+            except ImportError:
+                self._tokenizer = None
+        return self._tokenizer
+
+    def estimate_tokens(self, prompt: str) -> int:
+        if self.tokenizer:
+            return len(self.tokenizer.encode(prompt))
+        return len(prompt) // 4
