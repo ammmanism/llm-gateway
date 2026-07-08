@@ -16,11 +16,13 @@ from .circuit_breaker import CircuitBreaker, CircuitState
 
 logger = logging.getLogger(__name__)
 
+
 class QualityTier(Enum):
     DRAFT = "draft"
     STANDARD = "standard"
     PREMIUM = "premium"
     ENTERPRISE = "enterprise"
+
 
 @dataclass
 class RouteDecision:
@@ -31,6 +33,7 @@ class RouteDecision:
     quality_score: float
     confidence: float
     modality: str = "text"
+
 
 class SemanticRouter:
     """
@@ -75,7 +78,12 @@ class SemanticRouter:
 
     def _init_cost_models(self) -> dict[str, dict]:
         return {
-            "openai": {"text_input": 0.005, "text_output": 0.015, "image": 0.04, "audio": 0.006},
+            "openai": {
+                "text_input": 0.005,
+                "text_output": 0.015,
+                "image": 0.04,
+                "audio": 0.006,
+            },
             "anthropic": {"text_input": 0.015, "text_output": 0.075},
             "google": {"text_input": 0.0005, "text_output": 0.0015, "image": 0.02},
             "stability": {"image": 0.01},
@@ -96,7 +104,7 @@ class SemanticRouter:
             self.coalescer = RequestCoalescer(
                 exact_ttl_seconds=settings.core.dedup_exact_ttl_seconds,
                 semantic_ttl_seconds=settings.core.dedup_semantic_ttl_seconds,
-                max_batch_size=settings.core.dedup_max_batch_size
+                max_batch_size=settings.core.dedup_max_batch_size,
             )
         if settings.core.enable_concurrency_limiting:
             self.concurrency_limiter = AdaptiveConcurrencyLimiter()
@@ -106,7 +114,7 @@ class SemanticRouter:
         if provider not in self.circuit_breakers:
             self.circuit_breakers[provider] = CircuitBreaker(
                 failure_threshold=settings.routing.circuit_breaker_threshold,
-                recovery_timeout=settings.routing.circuit_breaker_timeout_seconds
+                recovery_timeout=settings.routing.circuit_breaker_timeout_seconds,
             )
         return self.circuit_breakers[provider]
 
@@ -130,23 +138,32 @@ class SemanticRouter:
         if self.concurrency_limiter:
             acquired = await self.concurrency_limiter.wait_and_acquire(modality)
             if not acquired:
-                logger.warning("Concurrency limit reached for %s, proceeding anyway", modality)
+                logger.warning(
+                    "Concurrency limit reached for %s, proceeding anyway", modality
+                )
 
         candidates = self._get_candidates(modality)
 
         # Filter by budget
         if cost_budget:
-            candidates = [c for c in candidates
-                         if self._estimate_cost(c, modality) <= cost_budget]
+            candidates = [
+                c for c in candidates if self._estimate_cost(c, modality) <= cost_budget
+            ]
 
         if latency_budget:
-            candidates = [c for c in candidates
-                         if self.latency_estimates.get(c, 99999) <= latency_budget]
+            candidates = [
+                c
+                for c in candidates
+                if self.latency_estimates.get(c, 99999) <= latency_budget
+            ]
 
         # Quality threshold
         min_quality = self._quality_threshold(quality)
-        quality_candidates = [c for c in candidates
-                             if self.quality_matrix.get(c, {}).get(modality, 0) >= min_quality]
+        quality_candidates = [
+            c
+            for c in candidates
+            if self.quality_matrix.get(c, {}).get(modality, 0) >= min_quality
+        ]
 
         if quality_candidates:
             candidates = quality_candidates
@@ -173,10 +190,10 @@ class SemanticRouter:
 
             # Multi-objective score
             score = (
-                0.4 * (quality_score / 10) +
-                0.3 * (1 - min(cost / 0.1, 1)) +
-                0.2 * (1 - min(latency / 5000, 1)) +
-                0.1 * reliability
+                0.4 * (quality_score / 10)
+                + 0.3 * (1 - min(cost / 0.1, 1))
+                + 0.2 * (1 - min(latency / 5000, 1))
+                + 0.1 * reliability
             )
 
             scored.append((provider, score, quality_score, cost, latency))
@@ -194,29 +211,33 @@ class SemanticRouter:
             estimated_latency_ms=best[4],
             quality_score=best[2],
             confidence=best[1],
-            modality=modality
+            modality=modality,
         )
 
     def _get_candidates(self, modality: str, ignore_quality: bool = False) -> list[str]:
         candidates = []
         for provider, scores in self.quality_matrix.items():
             if scores.get(modality, 0) > 0 or ignore_quality:
-                if settings.providers.get(provider, ProviderConfig(name=provider, api_key_env="DUMMY")).enabled:
+                if settings.providers.get(
+                    provider, ProviderConfig(name=provider, api_key_env="DUMMY")
+                ).enabled:
                     candidates.append(provider)
         return candidates
 
-    def _estimate_cost(self, provider: str, modality: str, complexity: int = 5) -> float:
+    def _estimate_cost(
+        self, provider: str, modality: str, complexity: int = 5
+    ) -> float:
         model = self.cost_models.get(provider, {})
-        base = model.get(modality) or model.get(f"{modality}_input") or model.get(f"{modality}_output") or 0.01
+        base = (
+            model.get(modality)
+            or model.get(f"{modality}_input")
+            or model.get(f"{modality}_output")
+            or 0.01
+        )
         return base * (1 + (complexity - 5) * 0.1)
 
     def _quality_threshold(self, tier: str) -> float:
-        thresholds = {
-            "draft": 5.0,
-            "standard": 7.0,
-            "premium": 8.5,
-            "enterprise": 9.0
-        }
+        thresholds = {"draft": 5.0, "standard": 7.0, "premium": 8.5, "enterprise": 9.0}
         return thresholds.get(tier, 7.0)
 
     def _reliability_score(self, provider: str) -> float:

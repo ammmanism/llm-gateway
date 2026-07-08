@@ -14,9 +14,11 @@ from .base import BaseModalityAdapter, ModalityResponse
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class AudioResponse(ModalityResponse):
     duration_seconds: float = 0.0
+
 
 class AudioAdapter(BaseModalityAdapter):
     """
@@ -35,11 +37,14 @@ class AudioAdapter(BaseModalityAdapter):
 
     def _init_clients(self):
         import os
+
         if os.getenv("OPENAI_API_KEY"):
             self.clients["openai"] = openai.AsyncOpenAI()
         # ElevenLabs client initialized on-demand
 
-    async def generate(self, inputs: list[Any], provider: str = "openai", **kwargs) -> AudioResponse:
+    async def generate(
+        self, inputs: list[Any], provider: str = "openai", **kwargs
+    ) -> AudioResponse:
         prompt = self._extract_prompt(inputs)
         operation = kwargs.get("operation", "synthesize")
 
@@ -49,7 +54,9 @@ class AudioAdapter(BaseModalityAdapter):
         else:
             return await self.synthesize(prompt, provider, **kwargs)
 
-    async def transcribe(self, audio: str, provider: str = "openai", **kwargs) -> AudioResponse:
+    async def transcribe(
+        self, audio: str, provider: str = "openai", **kwargs
+    ) -> AudioResponse:
         if provider == "openai":
             client = self.clients.get("openai")
             if not client:
@@ -65,7 +72,7 @@ class AudioAdapter(BaseModalityAdapter):
                     file=("audio.mp3", audio_bytes),
                     language=language,
                     prompt=prompt,
-                    response_format="text"
+                    response_format="text",
                 )
                 # Estimate duration: 1 min approx 1 MB, rough
                 duration = len(audio_bytes) / (1000 * 60)  # rough
@@ -76,13 +83,15 @@ class AudioAdapter(BaseModalityAdapter):
                     model=model,
                     provider="openai",
                     cost=round(cost, 6),
-                    duration_seconds=duration
+                    duration_seconds=duration,
                 )
             except Exception as e:
                 raise ProviderError(f"OpenAI transcription error: {e}")
         raise ValueError(f"Transcription not supported for {provider}")
 
-    async def synthesize(self, text: str, provider: str = "openai", **kwargs) -> AudioResponse:
+    async def synthesize(
+        self, text: str, provider: str = "openai", **kwargs
+    ) -> AudioResponse:
         if provider == "openai":
             client = self.clients.get("openai")
             if not client:
@@ -93,10 +102,7 @@ class AudioAdapter(BaseModalityAdapter):
 
             try:
                 response = await client.audio.speech.create(
-                    model=model,
-                    voice=voice,
-                    input=text,
-                    speed=speed
+                    model=model, voice=voice, input=text, speed=speed
                 )
                 audio_bytes = await response.aread()
                 audio_b64 = base64.b64encode(audio_bytes).decode()
@@ -108,13 +114,15 @@ class AudioAdapter(BaseModalityAdapter):
                     model=model,
                     provider="openai",
                     cost=round(cost, 6),
-                    duration_seconds=duration
+                    duration_seconds=duration,
                 )
             except Exception as e:
                 raise ProviderError(f"OpenAI TTS error: {e}")
         raise ValueError(f"Synthesis not supported for {provider}")
 
-    async def clone_voice(self, reference_audio: str, text: str, provider: str = "elevenlabs") -> AudioResponse:
+    async def clone_voice(
+        self, reference_audio: str, text: str, provider: str = "elevenlabs"
+    ) -> AudioResponse:
         # Placeholder for ElevenLabs
         return AudioResponse(
             content="[cloned_voice_audio_base64]",
@@ -122,7 +130,7 @@ class AudioAdapter(BaseModalityAdapter):
             model="elevenlabs-v2",
             provider="elevenlabs",
             cost=0.05,
-            duration_seconds=len(text) / 15
+            duration_seconds=len(text) / 15,
         )
 
     async def generate_stream(self, inputs: list[Any], **kwargs):
@@ -140,5 +148,5 @@ class AudioAdapter(BaseModalityAdapter):
 
     async def close(self):
         for client in self.clients.values():
-            if hasattr(client, 'close'):
+            if hasattr(client, "close"):
                 await client.close()

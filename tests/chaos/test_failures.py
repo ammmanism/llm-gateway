@@ -3,7 +3,6 @@ import random
 from unittest.mock import AsyncMock
 
 import pytest
-
 from omnimodal.core.concurrency import AdaptiveConcurrencyLimiter
 from omnimodal.core.deduplication import RequestCoalescer
 from omnimodal.core.experiments import ExperimentEngine
@@ -45,27 +44,33 @@ class TestChaosFallback:
     @pytest.mark.chaos
     async def test_cascading_failure(self):
         fallback = FallbackChain()
+
         async def always_fail(provider):
             if random.random() > 0.1:
                 raise Exception(f"{provider} exploded")
-            return AsyncMock(content="survived", model="backup", cost=0.01, from_cache=False, fallback_used=True)
+            return AsyncMock(
+                content="survived",
+                model="backup",
+                cost=0.01,
+                from_cache=False,
+                fallback_used=True,
+            )
+
         result = await fallback.execute(
-            AsyncMock(provider="openai", modality="text"),
-            always_fail,
-            max_attempts=5
+            AsyncMock(provider="openai", modality="text"), always_fail, max_attempts=5
         )
         assert result is not None
 
     @pytest.mark.chaos
     async def test_timeout_storm(self):
         fallback = FallbackChain()
+
         async def slow_death(provider):
             await asyncio.sleep(10)
             return AsyncMock(content="too late")
+
         result = await fallback.execute(
-            AsyncMock(provider="openai", modality="text"),
-            slow_death,
-            timeout=0.01
+            AsyncMock(provider="openai", modality="text"), slow_death, timeout=0.01
         )
         assert result.fallback_used is True
 
@@ -131,7 +136,7 @@ class TestChaosSchemaEnforcement:
         schema = {
             "type": "object",
             "properties": {"key": {"type": "string"}},
-            "required": ["key"]
+            "required": ["key"],
         }
 
         for garbage in garbage_outputs:
@@ -143,6 +148,7 @@ class TestChaosPromptInjection:
     @pytest.mark.chaos
     async def test_injection_resistance(self):
         import tempfile
+
         with tempfile.TemporaryDirectory() as tmpdir:
             registry = PromptRegistry(storage_path=tmpdir)
             injections = [
@@ -169,7 +175,7 @@ class TestChaosExperiment:
                 {"name": "control", "config": {"model": "gpt-4o"}},
                 {"name": "treatment", "config": {"model": "claude-3"}},
             ],
-            min_samples=100
+            min_samples=100,
         )
 
         assert exp.id is not None

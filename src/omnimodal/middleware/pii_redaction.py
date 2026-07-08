@@ -10,13 +10,16 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
+
 class PIIRedactor:
     PATTERNS = {
-        "email": re.compile(r'\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b'),
-        "phone": re.compile(r'\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b'),
-        "ssn": re.compile(r'\b\d{3}-\d{2}-\d{4}\b'),
-        "credit_card": re.compile(r'\b(?:\d{4}[-\s]?){3}\d{4}\b'),
-        "ip_address": re.compile(r'\b(?:\d{1,3}\.){3}\d{1,3}\b'),
+        "email": re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"),
+        "phone": re.compile(
+            r"\b(?:\+?1[-.\s]?)?\(?[0-9]{3}\)?[-.\s]?[0-9]{3}[-.\s]?[0-9]{4}\b"
+        ),
+        "ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
+        "credit_card": re.compile(r"\b(?:\d{4}[-\s]?){3}\d{4}\b"),
+        "ip_address": re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b"),
     }
 
     def redact(self, text: str, preserve_length: bool = True) -> tuple[str, list[dict]]:
@@ -31,7 +34,9 @@ class PIIRedactor:
                 else:
                     replacement = f"[{pii_type.upper()}_REDACTED]"
                 redacted = redacted[:start] + replacement + redacted[end:]
-                findings.append({"type": pii_type, "position": (start, end), "confidence": 1.0})
+                findings.append(
+                    {"type": pii_type, "position": (start, end), "confidence": 1.0}
+                )
         return redacted, findings
 
     def redact_multimodal(self, inputs: list[dict]) -> list[dict]:
@@ -39,10 +44,13 @@ class PIIRedactor:
         for inp in inputs:
             if inp.get("type") == "text":
                 text, findings = self.redact(inp["content"])
-                redacted_inputs.append({**inp, "content": text, "pii_redacted": findings})
+                redacted_inputs.append(
+                    {**inp, "content": text, "pii_redacted": findings}
+                )
             else:
                 redacted_inputs.append(inp)
         return redacted_inputs
+
 
 class PIIRedactionMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, enabled: bool = True):

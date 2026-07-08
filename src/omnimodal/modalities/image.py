@@ -15,10 +15,12 @@ from .base import BaseModalityAdapter, ModalityResponse
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class ImageResponse(ModalityResponse):
     width: int = 0
     height: int = 0
+
 
 class ImageAdapter(BaseModalityAdapter):
     """
@@ -37,11 +39,14 @@ class ImageAdapter(BaseModalityAdapter):
 
     def _init_clients(self):
         import os
+
         if os.getenv("OPENAI_API_KEY"):
             self.clients["openai"] = openai.AsyncOpenAI()
         # Other clients on-demand
 
-    async def generate(self, inputs: list[Any], provider: str = "openai", **kwargs) -> ImageResponse:
+    async def generate(
+        self, inputs: list[Any], provider: str = "openai", **kwargs
+    ) -> ImageResponse:
         prompt = self._extract_prompt(inputs)
         model = kwargs.get("model") or self._default_model(provider)
         size = kwargs.get("size", "1024x1024")
@@ -55,7 +60,9 @@ class ImageAdapter(BaseModalityAdapter):
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
-    async def _generate_openai(self, prompt: str, model: str, size: str, quality: str, style: str | None) -> ImageResponse:
+    async def _generate_openai(
+        self, prompt: str, model: str, size: str, quality: str, style: str | None
+    ) -> ImageResponse:
         client = self.clients.get("openai")
         if not client:
             raise ProviderError("OpenAI client not initialized")
@@ -66,7 +73,7 @@ class ImageAdapter(BaseModalityAdapter):
             "size": size,
             "quality": quality,
             "n": 1,
-            "response_format": "b64_json"
+            "response_format": "b64_json",
         }
         if style:
             params["style"] = style
@@ -84,12 +91,14 @@ class ImageAdapter(BaseModalityAdapter):
                 provider="openai",
                 cost=cost,
                 width=width,
-                height=height
+                height=height,
             )
         except Exception as e:
             raise ProviderError(f"OpenAI image error: {e}")
 
-    async def _generate_stability(self, prompt: str, model: str, size: str) -> ImageResponse:
+    async def _generate_stability(
+        self, prompt: str, model: str, size: str
+    ) -> ImageResponse:
         # Placeholder for Stability AI
         return ImageResponse(
             content="[base64_placeholder]",
@@ -98,10 +107,12 @@ class ImageAdapter(BaseModalityAdapter):
             provider="stability",
             cost=0.01,
             width=1024,
-            height=1024
+            height=1024,
         )
 
-    async def edit(self, image: str, mask: str | None, prompt: str, provider: str = "openai") -> ImageResponse:
+    async def edit(
+        self, image: str, mask: str | None, prompt: str, provider: str = "openai"
+    ) -> ImageResponse:
         if provider == "openai":
             client = self.clients.get("openai")
             if not client:
@@ -112,7 +123,7 @@ class ImageAdapter(BaseModalityAdapter):
                     mask=io.BytesIO(base64.b64decode(mask)) if mask else None,
                     prompt=prompt,
                     n=1,
-                    size="1024x1024"
+                    size="1024x1024",
                 )
                 # Parse response...
                 return ImageResponse(
@@ -122,7 +133,7 @@ class ImageAdapter(BaseModalityAdapter):
                     provider="openai",
                     cost=0.02,
                     width=1024,
-                    height=1024
+                    height=1024,
                 )
             except Exception as e:
                 raise ProviderError(f"OpenAI edit error: {e}")
@@ -133,7 +144,9 @@ class ImageAdapter(BaseModalityAdapter):
         result = await self.generate(inputs, **kwargs)
         yield result.content
 
-    async def understand(self, image: str, prompt: str, provider: str = "openai") -> str:
+    async def understand(
+        self, image: str, prompt: str, provider: str = "openai"
+    ) -> str:
         if provider == "openai":
             client = self.clients.get("openai")
             if not client:
@@ -146,10 +159,15 @@ class ImageAdapter(BaseModalityAdapter):
                             "role": "user",
                             "content": [
                                 {"type": "text", "text": prompt},
-                                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{image}"}}
-                            ]
+                                {
+                                    "type": "image_url",
+                                    "image_url": {
+                                        "url": f"data:image/png;base64,{image}"
+                                    },
+                                },
+                            ],
                         }
-                    ]
+                    ],
                 )
                 return response.choices[0].message.content
             except Exception as e:
@@ -170,5 +188,5 @@ class ImageAdapter(BaseModalityAdapter):
 
     async def close(self):
         for client in self.clients.values():
-            if hasattr(client, 'close'):
+            if hasattr(client, "close"):
                 await client.close()

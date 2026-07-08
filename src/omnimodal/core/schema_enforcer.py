@@ -40,14 +40,16 @@ Rules:
 
     def extract_json(self, text: str) -> str | None:
         text = text.strip()
-        if (text.startswith('{') and text.endswith('}')) or (text.startswith('[') and text.endswith(']')):
+        if (text.startswith("{") and text.endswith("}")) or (
+            text.startswith("[") and text.endswith("]")
+        ):
             return text
 
         patterns = [
-            r'```json\s*(.*?)\s*```',
-            r'```\s*(.*?)\s*```',
-            r'\{.*\}',
-            r'\[.*\]',
+            r"```json\s*(.*?)\s*```",
+            r"```\s*(.*?)\s*```",
+            r"\{.*\}",
+            r"\[.*\]",
         ]
 
         for pattern in patterns:
@@ -59,10 +61,10 @@ Rules:
                 except json.JSONDecodeError:
                     continue
 
-        start = text.find('{')
-        end = text.rfind('}')
+        start = text.find("{")
+        end = text.rfind("}")
         if start != -1 and end != -1 and end > start:
-            candidate = text[start:end+1]
+            candidate = text[start : end + 1]
             try:
                 json.loads(candidate)
                 return candidate
@@ -72,24 +74,19 @@ Rules:
         return None
 
     def validate(
-        self,
-        output: str,
-        schema: dict[str, Any],
-        pydantic_model: type | None = None
+        self, output: str, schema: dict[str, Any], pydantic_model: type | None = None
     ) -> SchemaValidationResult:
         json_str = self.extract_json(output)
         if not json_str:
             return SchemaValidationResult(
-                is_valid=False,
-                errors=["No valid JSON found in output"]
+                is_valid=False, errors=["No valid JSON found in output"]
             )
 
         try:
             data = json.loads(json_str)
         except json.JSONDecodeError as e:
             return SchemaValidationResult(
-                is_valid=False,
-                errors=[f"JSON parse error: {e}"]
+                is_valid=False, errors=[f"JSON parse error: {e}"]
             )
 
         if pydantic_model:
@@ -98,16 +95,14 @@ Rules:
                 return SchemaValidationResult(is_valid=True, errors=[])
             except Exception as e:
                 return SchemaValidationResult(
-                    is_valid=False,
-                    errors=[str(e)],
-                    repaired_output=json_str
+                    is_valid=False, errors=[str(e)], repaired_output=json_str
                 )
 
         errors = self._validate_against_schema(data, schema)
         return SchemaValidationResult(
             is_valid=len(errors) == 0,
             errors=errors,
-            repaired_output=json_str if errors else None
+            repaired_output=json_str if errors else None,
         )
 
     def _validate_against_schema(self, data: Any, schema: dict) -> list:
@@ -125,7 +120,9 @@ Rules:
             properties = schema.get("properties", {})
             for field, field_schema in properties.items():
                 if field in data:
-                    field_errors = self._validate_against_schema(data[field], field_schema)
+                    field_errors = self._validate_against_schema(
+                        data[field], field_schema
+                    )
                     errors.extend([f"{field}: {e}" for e in field_errors])
 
         elif schema.get("type") == "array":
@@ -153,27 +150,26 @@ Rules:
         prompt: str,
         generate_fn: Callable,
         schema: dict[str, Any],
-        pydantic_model: type | None = None
+        pydantic_model: type | None = None,
     ) -> dict[str, Any]:
         injected_prompt = self.inject_schema(prompt, schema)
+        current_prompt = injected_prompt
 
         for attempt in range(self.max_repair_attempts):
-            output = await generate_fn(
-                injected_prompt if attempt == 0
-                else self._repair_prompt(prompt, schema, output)
-            )
+            output = await generate_fn(current_prompt)
 
             result = self.validate(output, schema, pydantic_model)
             if result.is_valid:
                 return json.loads(result.repaired_output or output)
 
             logger.warning(
-                "Schema validation failed (attempt %d): %s",
-                attempt + 1, result.errors
+                "Schema validation failed (attempt %d): %s", attempt + 1, result.errors
             )
 
             if attempt == self.max_repair_attempts - 1:
                 return self._apply_defaults({}, schema)
+
+            current_prompt = self._repair_prompt(prompt, schema, output)
 
         raise ValueError("Failed to generate valid output after max retries")
 
@@ -204,17 +200,22 @@ Output valid JSON now:"""
             pass
         return None
 
-    async def enforce_with_defaults(self, prompt: str, gen_fn: Callable, schema: dict) -> dict:
+    async def enforce_with_defaults(
+        self, prompt: str, gen_fn: Callable, schema: dict
+    ) -> dict:
         try:
             return await self.enforce(prompt, gen_fn, schema)
         except Exception:
             return self._apply_defaults({}, schema)
 
-    async def enforce_dry_run(self, prompt: str, gen_fn: Callable, schema: dict) -> dict:
+    async def enforce_dry_run(
+        self, prompt: str, gen_fn: Callable, schema: dict
+    ) -> dict:
         return self._apply_defaults({}, schema)
 
     def validate_json(self, data: str, schema: dict) -> bool:
         import json
+
         try:
             parsed = json.loads(data)
             return self._validate_dict(parsed, schema)
@@ -226,8 +227,8 @@ Output valid JSON now:"""
             if key not in d:
                 return False
             if isinstance(rules, dict):
-                if not isinstance(d[key], dict) or not self._validate_dict(d[key], rules):
+                if not isinstance(d[key], dict) or not self._validate_dict(
+                    d[key], rules
+                ):
                     return False
         return True
-
-

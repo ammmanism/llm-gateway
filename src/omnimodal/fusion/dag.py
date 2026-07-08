@@ -10,11 +10,13 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+
 class FusionStageType(Enum):
     TRANSFORM = auto()
     COMBINE = auto()
     SPLIT = auto()
     ENHANCE = auto()
+
 
 @dataclass
 class FusionStage:
@@ -28,6 +30,7 @@ class FusionStage:
     dependencies: list[str] = field(default_factory=list)
     can_parallelize: bool = False
 
+
 @dataclass
 class FusionDAG:
     stages: list[FusionStage]
@@ -39,7 +42,11 @@ class FusionDAG:
         completed = set()
 
         while len(completed) < len(self.stages):
-            ready = [s for s in self.stages if s.id not in completed and all(d in completed for d in s.dependencies)]
+            ready = [
+                s
+                for s in self.stages
+                if s.id not in completed and all(d in completed for d in s.dependencies)
+            ]
 
             parallel_groups = []
             current_group = []
@@ -55,23 +62,37 @@ class FusionDAG:
 
             for group in parallel_groups:
                 if len(group) == 1:
-                    results[group[0].id] = await self._execute_stage(group[0], adapters, results)
+                    results[group[0].id] = await self._execute_stage(
+                        group[0], adapters, results
+                    )
                     completed.add(group[0].id)
                 else:
-                    tasks = [self._execute_stage(stage, adapters, results) for stage in group]
+                    tasks = [
+                        self._execute_stage(stage, adapters, results) for stage in group
+                    ]
                     stage_results = await asyncio.gather(*tasks)
-                    for stage, result in zip(group, stage_results):
+                    for stage, result in zip(group, stage_results, strict=False):
                         results[stage.id] = result
                         completed.add(stage.id)
 
-        final_stage = [s for s in self.stages if s.output_modality == self.output_modality][-1]
+        final_stage = [
+            s for s in self.stages if s.output_modality == self.output_modality
+        ][-1]
         return {
             "content": results[final_stage.id],
             "stages_executed": len(self.stages),
-            "providers": list(set(r.get("provider", "unknown") for r in results.values() if isinstance(r, dict)))
+            "providers": list(
+                {
+                    r.get("provider", "unknown")
+                    for r in results.values()
+                    if isinstance(r, dict)
+                }
+            ),
         }
 
-    async def _execute_stage(self, stage: FusionStage, adapters: dict, prior_results: dict) -> Any:
+    async def _execute_stage(
+        self, stage: FusionStage, adapters: dict, prior_results: dict
+    ) -> Any:
         adapter = adapters.get(stage.adapter)
         if not adapter:
             raise ValueError(f"Unknown adapter: {stage.adapter}")

@@ -13,9 +13,12 @@ from ..config import settings
 
 logger = logging.getLogger("audit")
 
+
 class AuditLogger:
     @staticmethod
-    async def log_request(request: Request, response: Any, cost_usd: float, provider: str, modality: str):
+    async def log_request(
+        request: Request, response: Any, cost_usd: float, provider: str, modality: str
+    ):
         """Log request details to audit backend."""
         entry = {
             "timestamp": time.time(),
@@ -26,9 +29,11 @@ class AuditLogger:
             "modality": modality,
             "provider": provider,
             "cost_usd": cost_usd,
-            "status_code": response.status_code if hasattr(response, 'status_code') else 200,
+            "status_code": (
+                response.status_code if hasattr(response, "status_code") else 200
+            ),
             "client_ip": request.client.host if request.client else "unknown",
-            "headers": dict(request.headers) if settings.debug else {}
+            "headers": dict(request.headers) if settings.debug else {},
         }
         if settings.security.audit_log_backend == "console":
             logger.info(json.dumps(entry))

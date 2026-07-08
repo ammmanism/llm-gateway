@@ -12,11 +12,13 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
+
 class Role(Enum):
     ADMIN = "admin"
     DEVELOPER = "developer"
     VIEWER = "viewer"
     BILLING = "billing"
+
 
 class RBACMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, policy_file: str = "config/rbac_policies.json"):
@@ -33,17 +35,21 @@ class RBACMiddleware(BaseHTTPMiddleware):
             return {
                 "roles": {
                     "admin": {"permissions": ["*"]},
-                    "developer": {"permissions": ["generate", "fuse", "transcribe", "cost_report"]},
+                    "developer": {
+                        "permissions": ["generate", "fuse", "transcribe", "cost_report"]
+                    },
                     "viewer": {"permissions": ["health", "providers"]},
-                    "billing": {"permissions": ["cost_report", "budget_alerts"]}
+                    "billing": {"permissions": ["cost_report", "budget_alerts"]},
                 },
-                "default_role": "developer"
+                "default_role": "developer",
             }
 
     async def dispatch(self, request: Request, call_next):
         # Extract user role from API key or JWT
         # For simplicity, we read from header "X-Role" (in production, validate token)
-        user_role = request.headers.get("X-Role", self.policy.get("default_role", "developer"))
+        user_role = request.headers.get(
+            "X-Role", self.policy.get("default_role", "developer")
+        )
         # Validate role exists
         if user_role not in self.policy["roles"]:
             user_role = self.policy.get("default_role", "developer")
@@ -52,8 +58,10 @@ class RBACMiddleware(BaseHTTPMiddleware):
         response = await call_next(request)
         return response
 
+
 def require_role(required_role: Role):
     """Decorator to enforce role-based access."""
+
     def decorator(func):
         @wraps(func)
         async def wrapper(*args, **kwargs):
@@ -64,7 +72,7 @@ def require_role(required_role: Role):
                     request = arg
                     break
             if not request:
-                for key, val in kwargs.items():
+                for _key, val in kwargs.items():
                     if isinstance(val, Request):
                         request = val
                         break
@@ -83,5 +91,7 @@ def require_role(required_role: Role):
                     if "*" not in permissions:
                         raise HTTPException(403, "Insufficient permissions")
             return await func(*args, **kwargs)
+
         return wrapper
+
     return decorator

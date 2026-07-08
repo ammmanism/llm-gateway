@@ -24,6 +24,7 @@ class ProviderConfig:
     def api_key(self) -> str:
         return os.getenv(self.api_key_env, "")
 
+
 @dataclass
 class CacheConfig:
     semantic_cache_url: str = "redis://localhost:6379/0"
@@ -32,6 +33,7 @@ class CacheConfig:
     vector_ttl_seconds: int = 86400
     similarity_threshold: float = 0.95
     max_entries: int = 100000
+
 
 @dataclass
 class RoutingConfig:
@@ -45,6 +47,7 @@ class RoutingConfig:
     circuit_breaker_timeout_seconds: int = 30
     enable_bulkhead: bool = True
 
+
 @dataclass
 class ObservabilityConfig:
     enable_opentelemetry: bool = True
@@ -54,6 +57,7 @@ class ObservabilityConfig:
     enable_cost_tracking: bool = True
     enable_latency_histograms: bool = True
 
+
 @dataclass
 class SecurityConfig:
     pii_redaction_enabled: bool = True
@@ -61,6 +65,7 @@ class SecurityConfig:
     rbac_policy_file: str = "config/rbac_policies.json"
     audit_log_enabled: bool = True
     audit_log_backend: str = "console"  # console, elasticsearch, cloudtrail
+
 
 @dataclass
 class CoreConfig:
@@ -91,6 +96,7 @@ class CoreConfig:
     enable_watermarking: bool = False
     watermark_default_provider: str = "omnimodal"
 
+
 @dataclass
 class OmniModalConfig:
     app_name: str = "omnimodal"
@@ -118,63 +124,58 @@ class OmniModalConfig:
                 name="openai",
                 api_key_env="OPENAI_API_KEY",
                 rate_limit_rps=50.0,
-                cost_model={"gpt-4o": {"input": 0.005, "output": 0.015}}
+                cost_model={"gpt-4o": {"input": 0.005, "output": 0.015}},
             ),
             "anthropic": ProviderConfig(
                 name="anthropic",
                 api_key_env="ANTHROPIC_API_KEY",
                 rate_limit_rps=20.0,
-                cost_model={"claude-3-opus": {"input": 0.015, "output": 0.075}}
+                cost_model={"claude-3-opus": {"input": 0.015, "output": 0.075}},
             ),
             "google": ProviderConfig(
-                name="google",
-                api_key_env="GOOGLE_API_KEY",
-                rate_limit_rps=30.0
+                name="google", api_key_env="GOOGLE_API_KEY", rate_limit_rps=30.0
             ),
             "stability": ProviderConfig(
-                name="stability",
-                api_key_env="STABILITY_API_KEY",
-                rate_limit_rps=10.0
+                name="stability", api_key_env="STABILITY_API_KEY", rate_limit_rps=10.0
             ),
             "replicate": ProviderConfig(
-                name="replicate",
-                api_key_env="REPLICATE_API_TOKEN",
-                rate_limit_rps=5.0
+                name="replicate", api_key_env="REPLICATE_API_TOKEN", rate_limit_rps=5.0
             ),
             "huggingface": ProviderConfig(
                 name="huggingface",
                 api_key_env="HF_TOKEN",
                 rate_limit_rps=5.0,
-                enabled=False
+                enabled=False,
             ),
             "aws_bedrock": ProviderConfig(
                 name="aws_bedrock",
                 api_key_env="AWS_ACCESS_KEY_ID",
                 rate_limit_rps=10.0,
-                enabled=False
+                enabled=False,
             ),
             "mistral": ProviderConfig(
                 name="mistral",
                 api_key_env="MISTRAL_API_KEY",
                 rate_limit_rps=10.0,
-                enabled=False
+                enabled=False,
             ),
             "local": ProviderConfig(
                 name="local",
                 api_key_env="",
                 base_url="http://localhost:11434",
                 rate_limit_rps=100.0,
-                enabled=True
-            )
+                enabled=True,
+            ),
         }
 
         # Load custom weights
         weights_path = os.getenv("OMNI_WEIGHTS_FILE", "config/provider_weights.yaml")
         if os.path.exists(weights_path):
             with open(weights_path) as f:
-                weights = yaml.safe_load(f)
+                yaml.safe_load(f)
                 # Merge weights into provider configs (simplified)
 
         return config
+
 
 settings = OmniModalConfig.from_env()

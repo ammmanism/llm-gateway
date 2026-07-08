@@ -16,13 +16,9 @@ async def verify_api_key(request: Request):
     api_key = request.headers.get("X-API-Key")
     if not api_key:
         raise HTTPException(
-            status_code=401,
-            detail="Missing API Key in headers (X-API-Key)"
+            status_code=401, detail="Missing API Key in headers (X-API-Key)"
         )
     # Placeholder validation
     if api_key != "omni_test_key":
-        raise HTTPException(
-            status_code=403,
-            detail="Invalid API Key"
-        )
+        raise HTTPException(status_code=403, detail="Invalid API Key")
     return api_key

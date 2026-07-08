@@ -23,6 +23,8 @@ class TestRouterLatency:
     async def test_cache_lookup_latency(self, cost_optimizer):
         """Cache lookup should be fast."""
         start = time.time()
-        await cost_optimizer.cache.get(cost_optimizer._cache_key("text", "test", "standard"))
+        await cost_optimizer.cache.get(
+            cost_optimizer._cache_key("text", "test", "standard")
+        )
         duration = time.time() - start
         assert duration < 0.05

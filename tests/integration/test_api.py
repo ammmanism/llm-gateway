@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-
 from omnimodal.main import app
 
 
@@ -36,7 +35,9 @@ async def client():
     }
     await app.state.router.warmup()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test"
+    ) as ac:
         yield ac
 
     for adapter in app.state.adapters.values():
@@ -66,6 +67,7 @@ class TestGenerationEndpoints:
 
     async def test_generate_text(self, client, monkeypatch):
         """Test text generation endpoint."""
+
         async def mock_generate(*args, **kwargs):
             return MagicMock(
                 content="Generated text",
@@ -73,16 +75,21 @@ class TestGenerationEndpoints:
                 provider="openai",
                 cost=0.001,
                 from_cache=False,
-                fallback_used=False
+                fallback_used=False,
             )
 
-        monkeypatch.setattr("omnimodal.modalities.text.TextAdapter.generate", mock_generate)
+        monkeypatch.setattr(
+            "omnimodal.modalities.text.TextAdapter.generate", mock_generate
+        )
 
-        response = await client.post("/v1/generate", json={
-            "inputs": [{"type": "text", "content": "Hello"}],
-            "output_modality": "text",
-            "quality": "standard"
-        })
+        response = await client.post(
+            "/v1/generate",
+            json={
+                "inputs": [{"type": "text", "content": "Hello"}],
+                "output_modality": "text",
+                "quality": "standard",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()
@@ -92,11 +99,14 @@ class TestGenerationEndpoints:
 
     async def test_generate_unsupported_modality(self, client):
         """Should return 400 for unsupported modality."""
-        response = await client.post("/v1/generate", json={
-            "inputs": [{"type": "text", "content": "Hello"}],
-            "output_modality": "hologram",
-            "quality": "standard"
-        })
+        response = await client.post(
+            "/v1/generate",
+            json={
+                "inputs": [{"type": "text", "content": "Hello"}],
+                "output_modality": "hologram",
+                "quality": "standard",
+            },
+        )
         assert response.status_code == 400
 
 
@@ -107,20 +117,26 @@ class TestFusionEndpoints:
         """Test basic fusion operation."""
         monkeypatch.setattr(
             "omnimodal.fusion.planner.FusionPlanner.plan",
-            MagicMock(return_value=MagicMock(
-                stages=[],
-                execute=AsyncMock(return_value=MagicMock(
-                    content="base64image",
-                    providers=["openai"]
-                ))
-            ))
+            MagicMock(
+                return_value=MagicMock(
+                    stages=[],
+                    execute=AsyncMock(
+                        return_value=MagicMock(
+                            content="base64image", providers=["openai"]
+                        )
+                    ),
+                )
+            ),
         )
 
-        response = await client.post("/v1/fuse", json={
-            "inputs": [{"type": "text", "content": "A cat"}],
-            "output_modality": "image",
-            "operation": "fuse"
-        })
+        response = await client.post(
+            "/v1/fuse",
+            json={
+                "inputs": [{"type": "text", "content": "A cat"}],
+                "output_modality": "image",
+                "operation": "fuse",
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()

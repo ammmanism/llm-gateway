@@ -24,6 +24,7 @@ class ProviderRegistry:
     def get(cls, name: str):
         return cls._providers.get(name)
 
+
 # Auto-register
 ProviderRegistry.register("openai", OpenAIProvider)
 ProviderRegistry.register("anthropic", AnthropicProvider)

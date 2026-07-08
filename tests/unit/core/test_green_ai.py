@@ -34,10 +34,7 @@ class TestCarbonTracker:
 
     def test_optimize_region(self):
         tracker = CarbonTracker()
-        best = tracker.optimize_region(
-            "gpt-4o", 100, 50,
-            ["us-east", "eu-north"]
-        )
+        best = tracker.optimize_region("gpt-4o", 100, 50, ["us-east", "eu-north"])
         assert best == "eu-north"
 
     def test_multiregion_carbon_difference(self):

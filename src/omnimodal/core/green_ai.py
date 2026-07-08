@@ -56,7 +56,7 @@ class CarbonTracker:
         model: str,
         tokens_input: int,
         tokens_output: int,
-        region: str | None = None
+        region: str | None = None,
     ) -> CarbonEstimate:
         region = region or self.default_region
         intensity = CARBON_INTENSITY.get(region, 400)
@@ -79,7 +79,7 @@ class CarbonTracker:
             tokens_input=tokens_input,
             tokens_output=tokens_output,
             equivalent_car_km=car_km,
-            equivalent_tree_hours=tree_hours
+            equivalent_tree_hours=tree_hours,
         )
 
     def track(self, estimate: CarbonEstimate):
@@ -93,27 +93,27 @@ class CarbonTracker:
             "total_co2_kg": round(self.total_co2_grams / 1000, 4),
             "total_energy_kwh": round(self.total_energy_joules / 3_600_000, 4),
             "request_count": self.request_count,
-            "avg_per_request_g": round(self.total_co2_grams / max(self.request_count, 1), 4),
+            "avg_per_request_g": round(
+                self.total_co2_grams / max(self.request_count, 1), 4
+            ),
             "equivalent_car_km": round(self.total_co2_grams / 120, 2),
             "equivalent_tree_hours": round(self.total_co2_grams / 60, 2),
-            "recommendations": self._get_recommendations()
+            "recommendations": self._get_recommendations(),
         }
 
     def _get_recommendations(self) -> list:
         recs = []
         if self.total_co2_grams > 1000:
-            recs.append("Consider using eu-north region (Sweden) for 8x lower carbon intensity")
+            recs.append(
+                "Consider using eu-north region (Sweden) for 8x lower carbon intensity"
+            )
         if self.request_count > 0:
             recs.append("Enable semantic caching to reduce redundant compute")
             recs.append("Use model downgrading for simple tasks")
         return recs
 
     def optimize_region(
-        self,
-        model: str,
-        tokens_input: int,
-        tokens_output: int,
-        allowed_regions: list
+        self, model: str, tokens_input: int, tokens_output: int, allowed_regions: list
     ) -> str:
         estimates = {
             region: self.estimate(model, tokens_input, tokens_output, region)
@@ -145,6 +145,7 @@ class CarbonBudgetEnforcer:
     def carbon_prometheus_metric(self):
         try:
             from prometheus_client import Counter
+
             c = Counter("carbon_footprint_grams", "Total carbon footprint in grams")
             c.inc(self.total_co2_grams)
         except ImportError:

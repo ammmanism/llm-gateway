@@ -8,10 +8,12 @@ from enum import Enum, auto
 
 logger = logging.getLogger(__name__)
 
+
 class CircuitState(Enum):
     CLOSED = auto()
     OPEN = auto()
     HALF_OPEN = auto()
+
 
 class CircuitBreaker:
     """
@@ -22,7 +24,7 @@ class CircuitBreaker:
         self,
         failure_threshold: int = 5,
         recovery_timeout: float = 30.0,
-        half_open_max_calls: int = 3
+        half_open_max_calls: int = 3,
     ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -66,7 +68,10 @@ class CircuitBreaker:
         self.last_failure_time = time.time()
         self.total_calls += 1
 
-        if self.state == CircuitState.CLOSED and self.failures >= self.failure_threshold:
+        if (
+            self.state == CircuitState.CLOSED
+            and self.failures >= self.failure_threshold
+        ):
             self.state = CircuitState.OPEN
             logger.warning(f"Circuit opened after {self.failures} failures")
         elif self.state == CircuitState.HALF_OPEN:

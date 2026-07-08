@@ -22,7 +22,7 @@ class RequestCoalescer:
         self,
         exact_ttl_seconds: float = 30.0,
         semantic_ttl_seconds: float = 5.0,
-        max_batch_size: int = 10
+        max_batch_size: int = 10,
     ):
         self.exact_inflight: dict[str, InFlightRequest] = {}
         self.semantic_inflight: dict[str, asyncio.Future] = {}
@@ -51,7 +51,7 @@ class RequestCoalescer:
         params: dict,
         executor: Callable,
         priority: int = 0,
-        use_semantic: bool = True
+        use_semantic: bool = True,
     ) -> Any:
         request_hash = self._hash_request(modality, prompt, params)
 
@@ -73,7 +73,7 @@ class RequestCoalescer:
             future=future,
             timestamp=asyncio.get_event_loop().time(),
             request_hash=request_hash,
-            modality=modality
+            modality=modality,
         )
         self.exact_inflight[request_hash] = inflight
 
@@ -91,15 +91,12 @@ class RequestCoalescer:
             future.set_exception(e)
             raise
         finally:
-            asyncio.create_task(self._cleanup_after_ttl(
-                request_hash, semantic_future, self.exact_ttl
-            ))
+            asyncio.create_task(
+                self._cleanup_after_ttl(request_hash, semantic_future, self.exact_ttl)
+            )
 
     async def _cleanup_after_ttl(
-        self,
-        exact_hash: str,
-        semantic_hash: str | None,
-        ttl: float
+        self, exact_hash: str, semantic_hash: str | None, ttl: float
     ):
         await asyncio.sleep(ttl)
         self.exact_inflight.pop(exact_hash, None)
@@ -111,7 +108,7 @@ class RequestCoalescer:
         batch_key: str,
         request: dict,
         batch_executor: Callable[[list], list],
-        max_wait_ms: float = 50.0
+        max_wait_ms: float = 50.0,
     ) -> Any:
         queue = self.batch_queues[batch_key]
         future = asyncio.get_event_loop().create_future()
@@ -131,10 +128,7 @@ class RequestCoalescer:
         return await future
 
     async def _batch_flush(
-        self,
-        batch_key: str,
-        batch_executor: Callable,
-        max_wait_ms: float
+        self, batch_key: str, batch_executor: Callable, max_wait_ms: float
     ):
         if max_wait_ms > 0:
             await asyncio.sleep(max_wait_ms / 1000)
@@ -144,14 +138,14 @@ class RequestCoalescer:
             self.batch_timers[batch_key] = None
             return
 
-        requests, futures = zip(*queue)
+        requests, futures = zip(*queue, strict=False)
         queue.clear()
         self.batch_timers[batch_key] = None
 
         try:
             self.batched_count += len(requests)
             results = await batch_executor(list(requests))
-            for future, result in zip(futures, results):
+            for future, result in zip(futures, results, strict=False):
                 if not future.done():
                     future.set_result(result)
         except Exception as e:
@@ -165,10 +159,11 @@ class RequestCoalescer:
             "batched_requests": self.batched_count,
             "exact_inflight": len(self.exact_inflight),
             "semantic_inflight": len(self.semantic_inflight),
-            "active_batches": len([q for q in self.batch_queues.values() if q])
+            "active_batches": len([q for q in self.batch_queues.values() if q]),
         }
 
     _semantic_hash_cache: dict[str, str] = {}
+
     def _cached_semantic_hash(self, modality: str, prompt: str) -> str:
         cache_key = f"{modality}:{prompt}"
         if cache_key not in self._semantic_hash_cache:
@@ -177,9 +172,11 @@ class RequestCoalescer:
 
     def _compute_fingerprint(self, content: str) -> str:
         import hashlib
+
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
 
     _semantic_hash_cache: dict[str, str] = {}
+
     def _cached_semantic_hash(self, modality: str, prompt: str) -> str:
         cache_key = f"{modality}:{prompt}"
         if cache_key not in self._semantic_hash_cache:

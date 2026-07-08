@@ -59,35 +59,34 @@ class ExperimentEngine:
         hypothesis: str,
         metric: str,
         variants: list[dict],
-        min_samples: int = 100
+        min_samples: int = 100,
     ) -> Experiment:
         exp_id = hashlib.sha256(f"{name}:{time.time()}".encode()).hexdigest()[:12]
         variant_objects = []
         traffic = 1.0 / len(variants)
         for i, v in enumerate(variants):
-            variant_objects.append(Variant(
-                id=f"{exp_id}_v{i}",
-                name=v["name"],
-                config=v["config"],
-                traffic_percentage=traffic
-            ))
+            variant_objects.append(
+                Variant(
+                    id=f"{exp_id}_v{i}",
+                    name=v["name"],
+                    config=v["config"],
+                    traffic_percentage=traffic,
+                )
+            )
         exp = Experiment(
             id=exp_id,
             name=name,
             hypothesis=hypothesis,
             metric=metric,
             variants=variant_objects,
-            min_samples=min_samples
+            min_samples=min_samples,
         )
         self.experiments[exp_id] = exp
         logger.info("Created experiment %s: %s", exp_id, name)
         return exp
 
     def get_variant(
-        self,
-        experiment_id: str,
-        user_id: str,
-        allow_shadow: bool = False
+        self, experiment_id: str, user_id: str, allow_shadow: bool = False
     ) -> Variant | None:
         exp = self.experiments.get(experiment_id)
         if not exp or exp.status != ExperimentStatus.RUNNING:
@@ -119,7 +118,7 @@ class ExperimentEngine:
         user_id: str,
         control_fn: Callable,
         treatment_fn: Callable,
-        shadow: bool = False
+        shadow: bool = False,
     ) -> Any:
         variant = self.get_variant(experiment_id, user_id)
         if not variant:
@@ -128,9 +127,7 @@ class ExperimentEngine:
         is_control = variant == self.experiments[experiment_id].variants[0]
 
         if shadow and not is_control:
-            asyncio.create_task(self._run_shadow(
-                experiment_id, variant, treatment_fn
-            ))
+            asyncio.create_task(self._run_shadow(experiment_id, variant, treatment_fn))
             return await control_fn()
 
         start = time.time()
@@ -154,11 +151,7 @@ class ExperimentEngine:
             self._record_result(exp_id, variant, False, 0)
 
     def _record_result(
-        self,
-        exp_id: str,
-        variant: Variant,
-        success: bool,
-        latency: float
+        self, exp_id: str, variant: Variant, success: bool, latency: float
     ):
         variant.impressions += 1
         if success:
@@ -176,28 +169,37 @@ class ExperimentEngine:
         control = exp.variants[0]
         treatment = exp.variants[1]
 
-        if control.impressions < exp.min_samples or treatment.impressions < exp.min_samples:
+        if (
+            control.impressions < exp.min_samples
+            or treatment.impressions < exp.min_samples
+        ):
             return {
                 "status": "insufficient_data",
                 "control_samples": control.impressions,
                 "treatment_samples": treatment.impressions,
-                "min_required": exp.min_samples
+                "min_required": exp.min_samples,
             }
 
         control_rate = control.conversions / max(control.impressions, 1)
         treatment_rate = treatment.conversions / max(treatment.impressions, 1)
 
-        control_se = math.sqrt(control_rate * (1 - control_rate) / max(control.impressions, 1))
-        treatment_se = math.sqrt(treatment_rate * (1 - treatment_rate) / max(treatment.impressions, 1))
+        control_se = math.sqrt(
+            control_rate * (1 - control_rate) / max(control.impressions, 1)
+        )
+        treatment_se = math.sqrt(
+            treatment_rate * (1 - treatment_rate) / max(treatment.impressions, 1)
+        )
 
         se_diff = math.sqrt(control_se**2 + treatment_se**2)
         z_score = (treatment_rate - control_rate) / se_diff if se_diff > 0 else 0
 
         from math import erf
+
         p_value = 2 * (1 - 0.5 * (1 + erf(abs(z_score) / math.sqrt(2))))
 
-        relative_lift = ((treatment_rate - control_rate) / control_rate
-                        if control_rate > 0 else 0)
+        relative_lift = (
+            (treatment_rate - control_rate) / control_rate if control_rate > 0 else 0
+        )
 
         winner = None
         if p_value < (1 - exp.confidence_level):
@@ -209,21 +211,22 @@ class ExperimentEngine:
             "control": {
                 "variant": control.name,
                 "rate": round(control_rate, 4),
-                "samples": control.impressions
+                "samples": control.impressions,
             },
             "treatment": {
                 "variant": treatment.name,
                 "rate": round(treatment_rate, 4),
-                "samples": treatment.impressions
+                "samples": treatment.impressions,
             },
             "relative_lift": f"{relative_lift:+.2%}",
             "p_value": round(p_value, 4),
             "confidence": f"{exp.confidence_level:.0%}",
             "winner": winner.name if winner else None,
             "recommendation": (
-                f"Roll out {winner.name}" if winner
+                f"Roll out {winner.name}"
+                if winner
                 else "Continue testing or check guardrail metrics"
-            )
+            ),
         }
 
     def auto_promote(self, experiment_id: str):
@@ -254,8 +257,8 @@ class ExperimentEngine:
         return {
             "action": "promoted",
             "variant": winner_name,
-            "new_traffic": winner.traffic_percentage
-}
+            "new_traffic": winner.traffic_percentage,
+        }
 
     def check_guardrails(self, exp_id: str, max_cost_regression: float = 0.1) -> bool:
         exp = self.experiments.get(exp_id)
@@ -271,7 +274,11 @@ class ExperimentEngine:
     def prune_stale(self, max_age_days: int = 30) -> int:
         now = time.time()
         threshold = now - (max_age_days * 86400)
-        stale = [eid for eid, e in self.experiments.items() if getattr(e, "created_at", 0) < threshold]
+        stale = [
+            eid
+            for eid, e in self.experiments.items()
+            if getattr(e, "created_at", 0) < threshold
+        ]
         for eid in stale:
             del self.experiments[eid]
         return len(stale)
@@ -280,4 +287,9 @@ class ExperimentEngine:
         exp = self.experiments.get(exp_id)
         if not exp:
             return {}
-        return {"name": exp_id, "variants": len(exp.variants), "total_cost": sum(v.total_cost for v in exp.variants), "total_latency": sum(v.total_latency for v in exp.variants)}
+        return {
+            "name": exp_id,
+            "variants": len(exp.variants),
+            "total_cost": sum(v.total_cost for v in exp.variants),
+            "total_latency": sum(v.total_latency for v in exp.variants),
+        }

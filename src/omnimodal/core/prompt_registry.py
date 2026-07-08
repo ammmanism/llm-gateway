@@ -63,7 +63,7 @@ class PromptRegistry:
             description=data.get("description", ""),
             versions=versions,
             active_version_id=data.get("active_version_id"),
-            status=PromptStatus(data.get("status", "draft"))
+            status=PromptStatus(data.get("status", "draft")),
         )
 
     def create_template(
@@ -72,20 +72,20 @@ class PromptRegistry:
         description: str,
         initial_prompt: str,
         variables: list[str],
-        model_config: dict | None = None
+        model_config: dict | None = None,
     ) -> PromptTemplate:
         version_id = self._hash_prompt(initial_prompt)
         version = PromptVersion(
             id=version_id,
             content=initial_prompt,
             template_variables=variables,
-            model_config=model_config or {}
+            model_config=model_config or {},
         )
         template = PromptTemplate(
             name=name,
             description=description,
             versions=[version],
-            active_version_id=version_id
+            active_version_id=version_id,
         )
         self.templates[name] = template
         self._save_template(template)
@@ -98,7 +98,7 @@ class PromptRegistry:
         new_prompt: str,
         variables: list[str] | None = None,
         model_config: dict | None = None,
-        created_by: str = "system"
+        created_by: str = "system",
     ) -> PromptVersion:
         template = self.templates.get(template_name)
         if not template:
@@ -114,7 +114,7 @@ class PromptRegistry:
             content=new_prompt,
             template_variables=variables or [],
             model_config=model_config or {},
-            created_by=created_by
+            created_by=created_by,
         )
         template.versions.append(version)
         template.active_version_id = version_id
@@ -126,17 +126,14 @@ class PromptRegistry:
         self,
         template_name: str,
         variables: dict[str, Any],
-        version_id: str | None = None
+        version_id: str | None = None,
     ) -> str:
         template = self.templates.get(template_name)
         if not template:
             raise ValueError(f"Template {template_name} not found")
 
         version_id = version_id or template.active_version_id
-        version = next(
-            (v for v in template.versions if v.id == version_id),
-            None
-        )
+        version = next((v for v in template.versions if v.id == version_id), None)
         if not version:
             raise ValueError(f"Version {version_id} not found")
 
@@ -163,7 +160,7 @@ class PromptRegistry:
             "you are now",
             "DAN",
             "jailbreak",
-            "ignore all instructions"
+            "ignore all instructions",
         ]
         lower = value.lower()
         return any(p in lower for p in injection_patterns)
@@ -179,7 +176,8 @@ class PromptRegistry:
             raise ValueError("Cannot rollback further")
 
         current_idx = next(
-            i for i, v in enumerate(template.versions)
+            i
+            for i, v in enumerate(template.versions)
             if v.id == template.active_version_id
         )
         target_idx = max(0, current_idx - steps)
@@ -191,10 +189,7 @@ class PromptRegistry:
         return target_version
 
     def compare_versions(
-        self,
-        template_name: str,
-        v1_id: str,
-        v2_id: str
+        self, template_name: str, v1_id: str, v2_id: str
     ) -> dict[str, Any]:
         template = self.templates[template_name]
         v1 = next(v for v in template.versions if v.id == v1_id)
@@ -207,19 +202,19 @@ class PromptRegistry:
                 "avg_latency_ms": v1.avg_latency_ms,
                 "avg_cost": v1.avg_cost,
                 "success_rate": v1.success_rate,
-                "usage": v1.usage_count
+                "usage": v1.usage_count,
             },
             "v2_metrics": {
                 "avg_latency_ms": v2.avg_latency_ms,
                 "avg_cost": v2.avg_cost,
                 "success_rate": v2.success_rate,
-                "usage": v2.usage_count
+                "usage": v2.usage_count,
             },
             "performance_delta": {
                 "latency": f"{((v2.avg_latency_ms - v1.avg_latency_ms) / max(v1.avg_latency_ms, 1)):+.1%}",
                 "cost": f"{((v2.avg_cost - v1.avg_cost) / max(v1.avg_cost, 1)):+.1%}",
-                "success_rate": f"{v2.success_rate - v1.success_rate:+.2%}"
-            }
+                "success_rate": f"{v2.success_rate - v1.success_rate:+.2%}",
+            },
         }
 
     def auto_rollback_on_regression(
@@ -227,28 +222,34 @@ class PromptRegistry:
         template_name: str,
         max_latency_regression: float = 0.2,
         max_cost_regression: float = 0.3,
-        min_success_rate: float = 0.95
+        min_success_rate: float = 0.95,
     ) -> PromptVersion | None:
         template = self.templates.get(template_name)
         if not template or len(template.versions) < 2:
             return None
 
         current = next(
-            v for v in template.versions
-            if v.id == template.active_version_id
+            v for v in template.versions if v.id == template.active_version_id
         )
         previous = template.versions[-2]
 
-        latency_reg = (current.avg_latency_ms - previous.avg_latency_ms) / max(previous.avg_latency_ms, 1)
+        latency_reg = (current.avg_latency_ms - previous.avg_latency_ms) / max(
+            previous.avg_latency_ms, 1
+        )
         cost_reg = (current.avg_cost - previous.avg_cost) / max(previous.avg_cost, 1)
 
-        if (latency_reg > max_latency_regression or
-            cost_reg > max_cost_regression or
-            current.success_rate < min_success_rate):
+        if (
+            latency_reg > max_latency_regression
+            or cost_reg > max_cost_regression
+            or current.success_rate < min_success_rate
+        ):
 
             logger.warning(
                 "Regression detected in %s! Latency: %+.1f%%, Cost: %+.1f%%, Success: %.2f%%",
-                template_name, latency_reg * 100, cost_reg * 100, current.success_rate * 100
+                template_name,
+                latency_reg * 100,
+                cost_reg * 100,
+                current.success_rate * 100,
             )
             return self.rollback(template_name, steps=1)
         return None
@@ -259,34 +260,40 @@ class PromptRegistry:
     def _save_template(self, template: PromptTemplate):
         path = self.storage / f"{template.name}.json"
         with open(path, "w") as f:
-            json.dump({
-                "name": template.name,
-                "description": template.description,
-                "versions": [
-                    {
-                        "id": v.id,
-                        "content": v.content,
-                        "template_variables": v.template_variables,
-                        "model_config": v.model_config,
-                        "created_at": v.created_at,
-                        "created_by": v.created_by,
-                        "avg_latency_ms": v.avg_latency_ms,
-                        "avg_cost": v.avg_cost,
-                        "success_rate": v.success_rate,
-                        "usage_count": v.usage_count
-                    }
-                    for v in template.versions
-                ],
-                "active_version_id": template.active_version_id,
-                "status": template.status.value
-            }, f, indent=2)
+            json.dump(
+                {
+                    "name": template.name,
+                    "description": template.description,
+                    "versions": [
+                        {
+                            "id": v.id,
+                            "content": v.content,
+                            "template_variables": v.template_variables,
+                            "model_config": v.model_config,
+                            "created_at": v.created_at,
+                            "created_by": v.created_by,
+                            "avg_latency_ms": v.avg_latency_ms,
+                            "avg_cost": v.avg_cost,
+                            "success_rate": v.success_rate,
+                            "usage_count": v.usage_count,
+                        }
+                        for v in template.versions
+                    ],
+                    "active_version_id": template.active_version_id,
+                    "status": template.status.value,
+                },
+                f,
+                indent=2,
+            )
 
     _tokenizer = None
+
     @property
     def tokenizer(self):
         if self._tokenizer is None:
             try:
                 import tiktoken
+
                 self._tokenizer = tiktoken.get_encoding("cl100k_base")
             except ImportError:
                 self._tokenizer = None
@@ -299,7 +306,11 @@ class PromptRegistry:
 
     def estimate_cost(self, prompt: str, model: str = "gpt-4") -> float:
         tokens = self.estimate_tokens(prompt)
-        rates = {"gpt-4": (0.03, 0.06), "gpt-3.5-turbo": (0.0015, 0.002), "claude-3": (0.015, 0.075)}
+        rates = {
+            "gpt-4": (0.03, 0.06),
+            "gpt-3.5-turbo": (0.0015, 0.002),
+            "claude-3": (0.015, 0.075),
+        }
         input_rate, _output_rate = rates.get(model, (0.03, 0.06))
         return (tokens / 1000) * input_rate
 
@@ -313,35 +324,13 @@ class PromptRegistry:
 
     def export_json(self) -> str:
         import json
-        data = {pid: {"template": p.template, "version": self.get_version(pid), "created_at": getattr(p, "created_at", "")} for pid, p in self._registry.items()}
+
+        data = {
+            pid: {
+                "template": p.template,
+                "version": self.get_version(pid),
+                "created_at": getattr(p, "created_at", ""),
+            }
+            for pid, p in self._registry.items()
+        }
         return json.dumps(data, indent=2)
-
-    _tokenizer = None
-    @property
-    def tokenizer(self):
-        if self._tokenizer is None:
-            try:
-                import tiktoken
-                self._tokenizer = tiktoken.get_encoding("cl100k_base")
-            except ImportError:
-                self._tokenizer = None
-        return self._tokenizer
-
-    def estimate_tokens(self, prompt: str) -> int:
-        if self.tokenizer:
-            return len(self.tokenizer.encode(prompt))
-        return len(prompt) // 4
-
-    def estimate_cost(self, prompt: str, model: str = "gpt-4") -> float:
-        tokens = self.estimate_tokens(prompt)
-        rates = {"gpt-4": (0.03, 0.06), "gpt-3.5-turbo": (0.0015, 0.002), "claude-3": (0.015, 0.075)}
-        input_rate, _output_rate = rates.get(model, (0.03, 0.06))
-        return (tokens / 1000) * input_rate
-
-    def bump_version(self, prompt_id: str) -> str:
-        v = self.get_version(prompt_id) or "0.0.0"
-        parts = [int(x) for x in v.split(".")]
-        parts[-1] += 1
-        new_v = ".".join(str(p) for p in parts)
-        self.set(prompt_id, self.get(prompt_id))
-        return new_v

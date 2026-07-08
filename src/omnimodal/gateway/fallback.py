@@ -14,6 +14,7 @@ from .circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class FallbackResult:
     content: str
@@ -25,6 +26,7 @@ class FallbackResult:
     latency_ms: int
     attempts: int
     mime_type: str = "text/plain"
+
 
 class FallbackChain:
     """
@@ -48,7 +50,7 @@ class FallbackChain:
         if provider not in self.circuit_breakers:
             self.circuit_breakers[provider] = CircuitBreaker(
                 failure_threshold=settings.routing.circuit_breaker_threshold,
-                recovery_timeout=settings.routing.circuit_breaker_timeout_seconds
+                recovery_timeout=settings.routing.circuit_breaker_timeout_seconds,
             )
         return self.circuit_breakers[provider]
 
@@ -57,7 +59,7 @@ class FallbackChain:
         primary: Any,
         operation: Callable,
         max_attempts: int = 3,
-        timeout: float = 30.0
+        timeout: float = 30.0,
     ) -> FallbackResult:
         """
         Execute operation with fallback chain.
@@ -75,10 +77,7 @@ class FallbackChain:
 
             try:
                 # Execute with timeout
-                result = await asyncio.wait_for(
-                    operation(provider),
-                    timeout=timeout
-                )
+                result = await asyncio.wait_for(operation(provider), timeout=timeout)
 
                 circuit.record_success()
                 logger.info(f"Success with {provider} after {attempt+1} attempts")
@@ -88,11 +87,11 @@ class FallbackChain:
                     provider=provider,
                     model=result.model,
                     cost=result.cost,
-                    from_cache=getattr(result, 'from_cache', False),
+                    from_cache=getattr(result, "from_cache", False),
                     fallback_used=(attempt > 0),
                     latency_ms=int((time.time() - start_time) * 1000),
                     attempts=attempt + 1,
-                    mime_type=getattr(result, 'mime_type', 'text/plain')
+                    mime_type=getattr(result, "mime_type", "text/plain"),
                 )
 
             except TimeoutError:
@@ -107,12 +106,16 @@ class FallbackChain:
         # All providers failed — attempt graceful degradation
         return await self._degrade(primary, operation, last_error)
 
-    async def _degrade(self, primary: Any, operation: Callable, error: str) -> FallbackResult:
-        modality = getattr(primary, 'modality', 'text')
+    async def _degrade(
+        self, primary: Any, operation: Callable, error: str
+    ) -> FallbackResult:
+        modality = getattr(primary, "modality", "text")
 
         if modality in self.degradation_map:
             simpler = self.degradation_map[modality]
-            logger.warning(f"Degrading from {modality} to {simpler} due to error: {error}")
+            logger.warning(
+                f"Degrading from {modality} to {simpler} due to error: {error}"
+            )
             return FallbackResult(
                 content=f"[DEGRADED to {simpler}] {error}",
                 provider="degradation",
@@ -122,7 +125,7 @@ class FallbackChain:
                 fallback_used=True,
                 latency_ms=0,
                 attempts=0,
-                mime_type="text/plain"
+                mime_type="text/plain",
             )
 
         # Final fallback: queue for async retry
@@ -135,11 +138,10 @@ class FallbackChain:
             fallback_used=True,
             latency_ms=0,
             attempts=0,
-            mime_type="text/plain"
+            mime_type="text/plain",
         )
 
     def get_health_status(self) -> dict[str, str]:
         return {
-            provider: cb.state.name
-            for provider, cb in self.circuit_breakers.items()
+            provider: cb.state.name for provider, cb in self.circuit_breakers.items()
         }

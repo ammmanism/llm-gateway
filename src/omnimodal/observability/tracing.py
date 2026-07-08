@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 logger = logging.getLogger(__name__)
 
+
 def setup_tracing(app: FastAPI):
     """Setup OpenTelemetry instrumentation."""
     try:

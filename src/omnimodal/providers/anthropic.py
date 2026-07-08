@@ -2,6 +2,7 @@
 Anthropic Provider
 """
 
+
 class AnthropicProvider:
     def health_check(self):
         return {"status": "healthy", "provider": "anthropic"}

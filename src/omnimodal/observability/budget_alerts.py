@@ -8,6 +8,7 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
+
 class BudgetAlertManager:
     def __init__(self, config_path: str = "config/budget_alerts.yaml"):
         self.config = self._load_config(config_path)
@@ -26,7 +27,7 @@ class BudgetAlertManager:
 
     def check_alerts(self):
         # Evaluate each alert
-        for alert in self.config:
+        for _alert in self.config:
             # Check threshold
             pass
 

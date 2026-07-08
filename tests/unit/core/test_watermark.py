@@ -1,7 +1,6 @@
 import time
 
 import pytest
-
 from omnimodal.core.watermark import (
     ImageWatermarker,
     TextWatermarker,
@@ -18,7 +17,7 @@ class TestTextWatermarker:
             timestamp=time.time(),
             request_id="req-456",
             provider="openai",
-            model="gpt-4o"
+            model="gpt-4o",
         )
 
         original = "This is a test sentence. It has two sentences."
@@ -51,9 +50,9 @@ class TestImageWatermarker:
 
         from PIL import Image
 
-        img = Image.new('RGB', (100, 100), color='red')
+        img = Image.new("RGB", (100, 100), color="red")
         buf = io.BytesIO()
-        img.save(buf, format='PNG')
+        img.save(buf, format="PNG")
         img_bytes = buf.getvalue()
 
         watermarker = ImageWatermarker()

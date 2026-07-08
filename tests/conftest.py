@@ -7,7 +7,6 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
-
 from omnimodal.gateway.cost_optimizer import CostOptimizer
 from omnimodal.gateway.fallback import FallbackChain
 from omnimodal.gateway.router import SemanticRouter
@@ -19,6 +18,7 @@ def event_loop():
     yield loop
     loop.close()
 
+
 @pytest_asyncio.fixture
 async def mock_redis():
     redis = AsyncMock()
@@ -27,13 +27,15 @@ async def mock_redis():
     redis.setex = AsyncMock(return_value=True)
     return redis
 
+
 @pytest.fixture
 def sample_text_request():
     return {
         "inputs": [{"type": "text", "content": "Explain quantum computing"}],
         "output_modality": "text",
-        "quality": "standard"
+        "quality": "standard",
     }
+
 
 @pytest_asyncio.fixture
 async def router():
@@ -41,15 +43,18 @@ async def router():
     await r.warmup()
     return r
 
+
 @pytest_asyncio.fixture
 async def cost_optimizer(mock_redis):
     opt = CostOptimizer()
     opt.cache.l2._client = mock_redis
     return opt
 
+
 @pytest.fixture
 def fallback_chain():
     return FallbackChain()
+
 
 @pytest.fixture
 def mock_openai_response():
@@ -59,6 +64,7 @@ def mock_openai_response():
     response.usage.prompt_tokens = 10
     response.usage.completion_tokens = 20
     return response
+
 
 @pytest.fixture
 def mock_anthropic_response():

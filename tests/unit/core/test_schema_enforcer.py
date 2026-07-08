@@ -6,11 +6,8 @@ class TestJSONSchemaEnforcer:
         self.enforcer = JSONSchemaEnforcer(max_repair_attempts=3)
         self.simple_schema = {
             "type": "object",
-            "properties": {
-                "name": {"type": "string"},
-                "age": {"type": "number"}
-            },
-            "required": ["name", "age"]
+            "properties": {"name": {"type": "string"}, "age": {"type": "number"}},
+            "required": ["name", "age"],
         }
 
     def test_extract_json_direct(self):
@@ -36,24 +33,19 @@ class TestJSONSchemaEnforcer:
 
     def test_validate_valid(self):
         result = self.enforcer.validate(
-            '{"name": "Alice", "age": 30}',
-            self.simple_schema
+            '{"name": "Alice", "age": 30}', self.simple_schema
         )
         assert result.is_valid is True
         assert len(result.errors) == 0
 
     def test_validate_missing_field(self):
-        result = self.enforcer.validate(
-            '{"name": "Alice"}',
-            self.simple_schema
-        )
+        result = self.enforcer.validate('{"name": "Alice"}', self.simple_schema)
         assert result.is_valid is False
         assert any("age" in e for e in result.errors)
 
     def test_validate_wrong_type(self):
         result = self.enforcer.validate(
-            '{"name": "Alice", "age": "thirty"}',
-            self.simple_schema
+            '{"name": "Alice", "age": "thirty"}', self.simple_schema
         )
         assert result.is_valid is False
 
@@ -65,10 +57,7 @@ class TestJSONSchemaEnforcer:
         assert "required" in injected
 
     def test_validate_array_schema(self):
-        schema = {
-            "type": "array",
-            "items": {"type": "string"}
-        }
+        schema = {"type": "array", "items": {"type": "string"}}
         result = self.enforcer.validate('["a", "b", "c"]', schema)
         assert result.is_valid is True
 
@@ -86,8 +75,8 @@ class TestJSONSchemaEnforcer:
             "type": "object",
             "properties": {
                 "name": {"type": "string", "default": "unknown"},
-                "age": {"type": "number"}
-            }
+                "age": {"type": "number"},
+            },
         }
         result = self.enforcer._apply_defaults({"age": 25}, schema)
         assert result["name"] == "unknown"

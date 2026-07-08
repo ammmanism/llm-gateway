@@ -14,10 +14,12 @@ class TestRequestCoalescer:
             await asyncio.sleep(0.05)
             return "result"
 
-        results = await asyncio.gather(*[
-            coalescer.execute_or_wait("text", "hello world", {}, exec_fn)
-            for _ in range(10)
-        ])
+        results = await asyncio.gather(
+            *[
+                coalescer.execute_or_wait("text", "hello world", {}, exec_fn)
+                for _ in range(10)
+            ]
+        )
 
         assert call_count == 1
         assert all(r == "result" for r in results)
@@ -53,13 +55,14 @@ class TestRequestCoalescer:
 
     async def test_batching(self):
         coalescer = RequestCoalescer(max_batch_size=3)
-        results = []
 
         async def batch_exec(requests):
             return [f"processed {r}" for r in requests]
 
         tasks = [
-            coalescer.execute_batched("test_batch", {"id": i}, batch_exec, max_wait_ms=200)
+            coalescer.execute_batched(
+                "test_batch", {"id": i}, batch_exec, max_wait_ms=200
+            )
             for i in range(5)
         ]
         await asyncio.gather(*tasks)
@@ -75,8 +78,12 @@ class TestRequestCoalescer:
             call_count += 1
             return "result"
 
-        await coalescer.execute_or_wait("text", "What is the weather", {}, exec_fn, use_semantic=True)
-        await coalescer.execute_or_wait("text", "What is the weather outside", {}, exec_fn, use_semantic=True)
+        await coalescer.execute_or_wait(
+            "text", "What is the weather", {}, exec_fn, use_semantic=True
+        )
+        await coalescer.execute_or_wait(
+            "text", "What is the weather outside", {}, exec_fn, use_semantic=True
+        )
 
         assert call_count == 2
 

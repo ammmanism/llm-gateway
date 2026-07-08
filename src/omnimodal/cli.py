@@ -33,14 +33,14 @@ class MockOmniClient:
         return MockResult(
             content=f"Generated {modality} for prompt: {prompt}",
             cost_usd=0.002,
-            latency_ms=250
+            latency_ms=250,
         )
 
     async def transcribe(self, audio_data, language=None):
         return MockResult(
             content="Transcribed text from mock audio data",
             cost_usd=0.006,
-            latency_ms=300
+            latency_ms=300,
         )
 
     async def fuse(self, inputs, output, operation="fuse", duration_seconds=None):
@@ -48,7 +48,7 @@ class MockOmniClient:
             content=f"Fused multimodal output as {output}",
             cost_usd=0.045,
             latency_ms=1200,
-            providers=["openai", "replicate"]
+            providers=["openai", "replicate"],
         )
 
     async def health(self):
@@ -58,8 +58,8 @@ class MockOmniClient:
             "providers": {
                 "openai": {"enabled": True, "regions": ["us-east"]},
                 "anthropic": {"enabled": True, "regions": ["us-west"]},
-                "google": {"enabled": True, "regions": ["us-central"]}
-            }
+                "google": {"enabled": True, "regions": ["us-central"]},
+            },
         }
 
     async def get_cost_report(self, days=30):
@@ -68,7 +68,7 @@ class MockOmniClient:
             "cache_hits": 24,
             "model_downgrades": 18,
             "total_saved_usd": 1.24,
-            "cache_hit_rate": 0.57
+            "cache_hit_rate": 0.57,
         }
 
 
@@ -89,27 +89,39 @@ def cli(ctx, api_key, verbose):
 
 @cli.command()
 @click.argument("prompt")
-@click.option("--modality", "-m", type=click.Choice(["text", "image", "audio", "video"]), default="text")
-@click.option("--quality", "-q", type=click.Choice(["draft", "standard", "premium", "enterprise"]), default="standard")
+@click.option(
+    "--modality",
+    "-m",
+    type=click.Choice(["text", "image", "audio", "video"]),
+    default="text",
+)
+@click.option(
+    "--quality",
+    "-q",
+    type=click.Choice(["draft", "standard", "premium", "enterprise"]),
+    default="standard",
+)
 @click.option("--output", "-o", type=click.Path(), help="Output file path")
 @click.option("--max-cost", type=float, help="Maximum cost in USD")
 @click.pass_context
 def generate(ctx, prompt, modality, quality, output, max_cost):
     """Generate content from a prompt."""
+
     async def _generate():
         client = MockOmniClient(api_key=ctx.obj["api_key"])
 
         with click.progressbar(length=1, label=f"Generating {modality}...") as bar:
             result = await client.generate(
-                prompt=prompt,
-                modality=modality,
-                quality=quality,
-                max_cost_usd=max_cost
+                prompt=prompt, modality=modality, quality=quality, max_cost_usd=max_cost
             )
             bar.update(1)
 
         if output:
-            Path(output).write_bytes(result.content if isinstance(result.content, bytes) else result.content.encode())
+            Path(output).write_bytes(
+                result.content
+                if isinstance(result.content, bytes)
+                else result.content.encode()
+            )
             click.echo(f"Success: Saved to {output}")
         else:
             click.echo(result.content)
@@ -126,6 +138,7 @@ def generate(ctx, prompt, modality, quality, output, max_cost):
 @click.pass_context
 def transcribe(ctx, audio_file, language, output):
     """Transcribe audio to text."""
+
     async def _transcribe():
         client = MockOmniClient(api_key=ctx.obj["api_key"])
 
@@ -138,7 +151,7 @@ def transcribe(ctx, audio_file, language, output):
         output_data = {
             "text": result.content,
             "provider": "openai",
-            "cost": result.cost_usd
+            "cost": result.cost_usd,
         }
 
         if output:
@@ -152,19 +165,27 @@ def transcribe(ctx, audio_file, language, output):
 
 @cli.command()
 @click.option("--input", "-i", multiple=True, help="Inputs in format type:content")
-@click.option("--output-modality", "-o", type=click.Choice(["text", "image", "audio", "video", "multimodal"]), required=True)
+@click.option(
+    "--output-modality",
+    "-o",
+    type=click.Choice(["text", "image", "audio", "video", "multimodal"]),
+    required=True,
+)
 @click.option("--operation", default="fuse")
 @click.option("--duration", type=int, help="Duration in seconds (for video/audio)")
 @click.pass_context
 def fuse(ctx, input, output_modality, operation, duration):
     """Fuse multiple modalities into one output."""
+
     async def _fuse():
         client = MockOmniClient(api_key=ctx.obj["api_key"])
 
         inputs = []
         for item in input:
             if ":" not in item:
-                raise click.BadParameter(f"Input must be in format type:content, got {item}")
+                raise click.BadParameter(
+                    f"Input must be in format type:content, got {item}"
+                )
             type_, content = item.split(":", 1)
             inputs.append({"type": type_, "content": content})
 
@@ -174,7 +195,7 @@ def fuse(ctx, input, output_modality, operation, duration):
             inputs=inputs,
             output=output_modality,
             operation=operation,
-            duration_seconds=duration
+            duration_seconds=duration,
         )
 
         click.echo("Fusion complete!")
@@ -188,6 +209,7 @@ def fuse(ctx, input, output_modality, operation, duration):
 @click.pass_context
 def health(ctx, provider):
     """Check system health."""
+
     async def _health():
         client = MockOmniClient()
         status = await client.health()
@@ -207,6 +229,7 @@ def health(ctx, provider):
 @click.pass_context
 def costs(ctx, days):
     """Show cost savings report."""
+
     async def _costs():
         client = MockOmniClient(api_key=ctx.obj["api_key"])
         report = await client.get_cost_report(days=days)
@@ -240,7 +263,7 @@ def create(ctx, name, description, initial_prompt, variables):
         name=name,
         description=description,
         initial_prompt=initial_prompt,
-        variables=list(variables)
+        variables=list(variables),
     )
     click.echo(f"Created prompt template: {tmpl.name} (v{tmpl.active_version_id[:8]})")
 
@@ -254,9 +277,7 @@ def update(ctx, name, new_prompt, variables):
     """Create new version of a prompt."""
     registry = PromptRegistry(storage_path=settings.core.prompt_storage_path)
     version = registry.create_version(
-        template_name=name,
-        new_prompt=new_prompt,
-        variables=list(variables) or None
+        template_name=name, new_prompt=new_prompt, variables=list(variables) or None
     )
     click.echo(f"Created version {version.id[:8]} for {name}")
 
@@ -292,8 +313,10 @@ def list_versions(ctx, name):
 @click.pass_context
 def carbon(ctx):
     """Show carbon footprint report."""
+
     async def _carbon():
         from omnimodal.core.green_ai import CarbonTracker
+
         tracker = CarbonTracker(default_region=settings.core.carbon_default_region)
 
         # Estimate a sample request

@@ -11,6 +11,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = logging.getLogger(__name__)
 
+
 class TokenBucket:
     def __init__(self, redis_client, capacity: int, refill_rate: float):
         self.redis = redis_client
@@ -36,8 +37,11 @@ class TokenBucket:
         await pipe.execute()
         return True
 
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, redis_client, requests_per_minute: int = 60, burst_size: int = 10):
+    def __init__(
+        self, app, redis_client, requests_per_minute: int = 60, burst_size: int = 10
+    ):
         super().__init__(app)
         self.bucket = TokenBucket(redis_client, burst_size, requests_per_minute / 60)
 

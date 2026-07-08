@@ -5,17 +5,13 @@ import pytest
 
 
 class TestLatencyRegression:
-    BASELINE_P50 = {
-        "text": 89,
-        "image": 6000,
-        "audio": 500,
-        "video": 15000
-    }
+    BASELINE_P50 = {"text": 89, "image": 6000, "audio": 500, "video": 15000}
 
     @pytest.mark.performance
     @pytest.mark.slow
     async def test_cache_hit_latency(self):
         from omnimodal.core.deduplication import RequestCoalescer
+
         coalescer = RequestCoalescer(exact_ttl_seconds=5.0)
 
         async def executor():
@@ -23,11 +19,15 @@ class TestLatencyRegression:
             return {"result": "success"}
 
         start = time.time()
-        result = await coalescer.execute_or_wait("text", "perf test prompt", {}, executor)
+        result = await coalescer.execute_or_wait(
+            "text", "perf test prompt", {}, executor
+        )
         first_latency = (time.time() - start) * 1000
 
         start = time.time()
-        result2 = await coalescer.execute_or_wait("text", "perf test prompt", {}, executor)
+        result2 = await coalescer.execute_or_wait(
+            "text", "perf test prompt", {}, executor
+        )
         second_latency = (time.time() - start) * 1000
 
         assert result == result2
@@ -37,6 +37,7 @@ class TestLatencyRegression:
     @pytest.mark.slow
     async def test_concurrency_limiter_overhead(self):
         from omnimodal.core.concurrency import AdaptiveConcurrencyLimiter
+
         limiter = AdaptiveConcurrencyLimiter()
 
         start = time.time()
@@ -51,6 +52,7 @@ class TestLatencyRegression:
     @pytest.mark.performance
     async def test_memory_stable(self):
         import tracemalloc
+
         tracemalloc.start()
 
         for _ in range(100):
@@ -59,7 +61,9 @@ class TestLatencyRegression:
         current, peak = tracemalloc.get_traced_memory()
         tracemalloc.stop()
 
-        assert current < 100 * 1024 * 1024, f"Memory usage {current / 1024 / 1024:.1f}MB too high"
+        assert (
+            current < 100 * 1024 * 1024
+        ), f"Memory usage {current / 1024 / 1024:.1f}MB too high"
 
 
 class TestThroughputRegression:
@@ -69,6 +73,7 @@ class TestThroughputRegression:
     @pytest.mark.slow
     async def test_coalescer_throughput(self):
         from omnimodal.core.deduplication import RequestCoalescer
+
         coalescer = RequestCoalescer(exact_ttl_seconds=1.0)
         call_count = 0
 

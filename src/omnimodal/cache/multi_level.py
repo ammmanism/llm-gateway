@@ -12,8 +12,10 @@ from ..config import settings
 
 logger = logging.getLogger(__name__)
 
+
 class LRUCache:
     """Simple in-memory LRU cache with TTL."""
+
     def __init__(self, maxsize=1000, ttl=300):
         self.maxsize = maxsize
         self.ttl = ttl
@@ -38,8 +40,10 @@ class LRUCache:
         self.cache[key] = value
         self.timestamps[key] = time.time()
 
+
 class RedisCache:
     """Redis-backed cache."""
+
     def __init__(self, url=None, ttl=3600):
         self.url = url or settings.cache.semantic_cache_url
         self.ttl = ttl
@@ -48,6 +52,7 @@ class RedisCache:
     async def _get_client(self):
         if self._client is None:
             import aioredis
+
             self._client = aioredis.from_url(self.url)
         return self._client
 
@@ -68,9 +73,11 @@ class RedisCache:
         except Exception as e:
             logger.warning(f"Redis set error: {e}")
 
+
 class ObjectStorageCache:
     """S3/GCS backed cache for large media."""
-    def __init__(self, ttl=86400*30):
+
+    def __init__(self, ttl=86400 * 30):
         self.ttl = ttl
         # Placeholder for boto3 / google-cloud-storage
 
@@ -82,12 +89,14 @@ class ObjectStorageCache:
         # Placeholder
         pass
 
+
 class MultiLevelCache:
     """Orchestrates L1, L2, L3 caches."""
+
     def __init__(self):
         self.l1 = LRUCache(maxsize=1000, ttl=300)
         self.l2 = RedisCache(ttl=3600)
-        self.l3 = ObjectStorageCache(ttl=86400*30)
+        self.l3 = ObjectStorageCache(ttl=86400 * 30)
         self.hits = 0
         self.misses = 0
 

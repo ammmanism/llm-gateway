@@ -12,7 +12,7 @@ class TestExperimentEngine:
                 {"name": "control", "config": {"model": "gpt-4o"}},
                 {"name": "treatment", "config": {"model": "claude-3"}},
             ],
-            min_samples=50
+            min_samples=50,
         )
         assert exp.id is not None
         assert len(exp.variants) == 2
@@ -27,7 +27,7 @@ class TestExperimentEngine:
             variants=[
                 {"name": "control", "config": {"model": "a"}},
                 {"name": "treatment", "config": {"model": "b"}},
-            ]
+            ],
         )
         exp.status = ExperimentStatus.RUNNING
 
@@ -45,7 +45,7 @@ class TestExperimentEngine:
                 {"name": "control", "config": {}},
                 {"name": "treatment", "config": {}},
             ],
-            min_samples=100
+            min_samples=100,
         )
         result = engine.analyze_experiment(exp.id)
         assert result["status"] == "insufficient_data"
@@ -60,7 +60,7 @@ class TestExperimentEngine:
                 {"name": "control", "config": {}},
                 {"name": "treatment", "config": {}},
             ],
-            min_samples=10
+            min_samples=10,
         )
         for _ in range(10):
             engine._record_result(exp.id, exp.variants[0], True, 0.1)
@@ -81,7 +81,7 @@ class TestExperimentEngine:
                 {"name": "control", "config": {}},
                 {"name": "treatment", "config": {}},
             ],
-            min_samples=10
+            min_samples=10,
         )
         for _ in range(20):
             engine._record_result(exp.id, exp.variants[0], True, 0.1)
@@ -99,9 +99,10 @@ class TestExperimentEngine:
             variants=[
                 {"name": "control", "config": {}},
                 {"name": "treatment", "config": {}},
-            ]
+            ],
         )
         import asyncio
+
         exp.status = ExperimentStatus.RUNNING
 
         async def control():
@@ -111,6 +112,8 @@ class TestExperimentEngine:
             return "treatment-result"
 
         result = asyncio.run(
-            engine.run_with_experiment(exp.id, "shadow-user", control, treatment, shadow=True)
+            engine.run_with_experiment(
+                exp.id, "shadow-user", control, treatment, shadow=True
+            )
         )
         assert result == "control-result"

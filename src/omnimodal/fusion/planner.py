@@ -30,14 +30,21 @@ class FusionPlanner:
         self,
         inputs: list[dict[str, Any]],
         output_modality: str,
-        constraints: dict | None = None
+        constraints: dict | None = None,
     ) -> FusionDAG:
         """
         Create an optimal fusion DAG.
         """
         constraints = constraints or {}
         # Convert dictionary inputs to list of types
-        input_modalities = [inp.get("type", "text") if isinstance(inp, dict) else getattr(inp, "type", "text") for inp in inputs]
+        input_modalities = [
+            (
+                inp.get("type", "text")
+                if isinstance(inp, dict)
+                else getattr(inp, "type", "text")
+            )
+            for inp in inputs
+        ]
 
         # Simple case: direct generation
         if len(input_modalities) == 1 and input_modalities[0] == output_modality:
@@ -58,7 +65,12 @@ class FusionPlanner:
 
     def _plan_direct(self, inputs, output_modality, constraints) -> FusionDAG:
         """Single modality direct generation."""
-        adapter_map = {"text": "text", "image": "image", "audio": "audio", "video": "video"}
+        adapter_map = {
+            "text": "text",
+            "image": "image",
+            "audio": "audio",
+            "video": "video",
+        }
 
         return FusionDAG(
             stages=[
@@ -69,11 +81,11 @@ class FusionPlanner:
                     output_modality=output_modality,
                     operation="generate",
                     adapter=adapter_map.get(output_modality, "text"),
-                    params={"quality": constraints.get("quality", "standard")}
+                    params={"quality": constraints.get("quality", "standard")},
                 )
             ],
             inputs=inputs,
-            output_modality=output_modality
+            output_modality=output_modality,
         )
 
     def _plan_image_to_video(self, inputs, constraints) -> FusionDAG:
@@ -87,7 +99,7 @@ class FusionPlanner:
                     output_modality="image",
                     operation="generate",
                     adapter="image",
-                    params={"operation": "validate"}
+                    params={"operation": "validate"},
                 ),
                 FusionStage(
                     id="generate_video",
@@ -98,13 +110,13 @@ class FusionPlanner:
                     adapter="video",
                     params={
                         "duration": constraints.get("duration_seconds", 4),
-                        "motion_prompt": "raw_text"
+                        "motion_prompt": "raw_text",
                     },
-                    dependencies=["extract_image"]
-                )
+                    dependencies=["extract_image"],
+                ),
             ],
             inputs=inputs,
-            output_modality="video"
+            output_modality="video",
         )
 
     def _plan_video_to_text(self, inputs, constraints) -> FusionDAG:
@@ -118,7 +130,7 @@ class FusionPlanner:
                     output_modality="image",
                     operation="extract",
                     adapter="video",
-                    params={"fps": 1}
+                    params={"fps": 1},
                 ),
                 FusionStage(
                     id="extract_audio",
@@ -127,7 +139,7 @@ class FusionPlanner:
                     output_modality="audio",
                     operation="extract",
                     adapter="video",
-                    can_parallelize=True
+                    can_parallelize=True,
                 ),
                 FusionStage(
                     id="analyze_frames",
@@ -137,7 +149,7 @@ class FusionPlanner:
                     operation="understand",
                     adapter="image",
                     dependencies=["extract_frames"],
-                    can_parallelize=True
+                    can_parallelize=True,
                 ),
                 FusionStage(
                     id="transcribe_audio",
@@ -147,7 +159,7 @@ class FusionPlanner:
                     operation="transcribe",
                     adapter="audio",
                     dependencies=["extract_audio"],
-                    can_parallelize=True
+                    can_parallelize=True,
                 ),
                 FusionStage(
                     id="fuse_understanding",
@@ -156,11 +168,11 @@ class FusionPlanner:
                     output_modality="text",
                     operation="understand",
                     adapter="text",
-                    dependencies=["analyze_frames", "transcribe_audio"]
-                )
+                    dependencies=["analyze_frames", "transcribe_audio"],
+                ),
             ],
             inputs=inputs,
-            output_modality="text"
+            output_modality="text",
         )
 
     def _plan_multimodal_output(self, inputs, constraints) -> FusionDAG:
@@ -174,7 +186,7 @@ class FusionPlanner:
                     output_modality="text",
                     operation="generate",
                     adapter="text",
-                    can_parallelize=True
+                    can_parallelize=True,
                 ),
                 FusionStage(
                     id="gen_image",
@@ -183,7 +195,7 @@ class FusionPlanner:
                     output_modality="image",
                     operation="generate",
                     adapter="image",
-                    can_parallelize=True
+                    can_parallelize=True,
                 ),
                 FusionStage(
                     id="gen_audio",
@@ -192,11 +204,11 @@ class FusionPlanner:
                     output_modality="audio",
                     operation="generate",
                     adapter="audio",
-                    can_parallelize=True
-                )
+                    can_parallelize=True,
+                ),
             ],
             inputs=inputs,
-            output_modality="multimodal"
+            output_modality="multimodal",
         )
 
     def _plan_generic(self, inputs, output_modality, constraints) -> FusionDAG:
@@ -209,9 +221,9 @@ class FusionPlanner:
                     inputs=["raw_input"],
                     output_modality=output_modality,
                     operation="generate",
-                    adapter=output_modality
+                    adapter=output_modality,
                 )
             ],
             inputs=inputs,
-            output_modality=output_modality
+            output_modality=output_modality,
         )

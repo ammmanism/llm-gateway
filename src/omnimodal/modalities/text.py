@@ -14,10 +14,12 @@ from .base import BaseModalityAdapter, ModalityResponse
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class TextResponse(ModalityResponse):
     tokens_input: int = 0
     tokens_output: int = 0
+
 
 class TextAdapter(BaseModalityAdapter):
     """
@@ -43,13 +45,16 @@ class TextAdapter(BaseModalityAdapter):
 
     def _init_clients(self):
         import os
+
         if os.getenv("OPENAI_API_KEY"):
             self.clients["openai"] = openai.AsyncOpenAI()
         if os.getenv("ANTHROPIC_API_KEY"):
             self.clients["anthropic"] = anthropic.AsyncAnthropic()
         # Other clients initialized on-demand
 
-    async def generate(self, inputs: list[Any], provider: str = "openai", **kwargs) -> TextResponse:
+    async def generate(
+        self, inputs: list[Any], provider: str = "openai", **kwargs
+    ) -> TextResponse:
         prompt = self._extract_prompt(inputs)
         model = kwargs.get("model") or self._default_model(provider)
         max_tokens = kwargs.get("max_tokens", 4096)
@@ -58,13 +63,17 @@ class TextAdapter(BaseModalityAdapter):
         if provider == "openai":
             return await self._generate_openai(prompt, model, max_tokens, temperature)
         elif provider == "anthropic":
-            return await self._generate_anthropic(prompt, model, max_tokens, temperature)
+            return await self._generate_anthropic(
+                prompt, model, max_tokens, temperature
+            )
         elif provider == "google":
             return await self._generate_google(prompt, model, max_tokens, temperature)
         elif provider == "local":
             return await self._generate_local(prompt, model, max_tokens, temperature)
         elif provider == "huggingface":
-            return await self._generate_huggingface(prompt, model, max_tokens, temperature)
+            return await self._generate_huggingface(
+                prompt, model, max_tokens, temperature
+            )
         elif provider == "aws_bedrock":
             return await self._generate_bedrock(prompt, model, max_tokens, temperature)
         elif provider == "mistral":
@@ -72,7 +81,9 @@ class TextAdapter(BaseModalityAdapter):
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
-    async def _generate_openai(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+    async def _generate_openai(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
         client = self.clients.get("openai")
         if not client:
             raise ProviderError("OpenAI client not initialized")
@@ -82,13 +93,15 @@ class TextAdapter(BaseModalityAdapter):
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
                 max_tokens=max_tokens,
-                temperature=temperature
+                temperature=temperature,
             )
             content = response.choices[0].message.content
             tokens_in = response.usage.prompt_tokens
             tokens_out = response.usage.completion_tokens
-            cost = (tokens_in / 1000 * self.pricing[model]["input"] +
-                    tokens_out / 1000 * self.pricing[model]["output"])
+            cost = (
+                tokens_in / 1000 * self.pricing[model]["input"]
+                + tokens_out / 1000 * self.pricing[model]["output"]
+            )
             return TextResponse(
                 content=content,
                 mime_type="text/plain",
@@ -96,12 +109,14 @@ class TextAdapter(BaseModalityAdapter):
                 provider="openai",
                 cost=round(cost, 6),
                 tokens_input=tokens_in,
-                tokens_output=tokens_out
+                tokens_output=tokens_out,
             )
         except Exception as e:
             raise ProviderError(f"OpenAI error: {e}")
 
-    async def _generate_anthropic(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+    async def _generate_anthropic(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
         client = self.clients.get("anthropic")
         if not client:
             raise ProviderError("Anthropic client not initialized")
@@ -110,13 +125,15 @@ class TextAdapter(BaseModalityAdapter):
                 model=model,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                messages=[{"role": "user", "content": prompt}]
+                messages=[{"role": "user", "content": prompt}],
             )
             content = response.content[0].text
             tokens_in = response.usage.input_tokens
             tokens_out = response.usage.output_tokens
-            cost = (tokens_in / 1000 * self.pricing[model]["input"] +
-                    tokens_out / 1000 * self.pricing[model]["output"])
+            cost = (
+                tokens_in / 1000 * self.pricing[model]["input"]
+                + tokens_out / 1000 * self.pricing[model]["output"]
+            )
             return TextResponse(
                 content=content,
                 mime_type="text/plain",
@@ -124,12 +141,14 @@ class TextAdapter(BaseModalityAdapter):
                 provider="anthropic",
                 cost=round(cost, 6),
                 tokens_input=tokens_in,
-                tokens_output=tokens_out
+                tokens_output=tokens_out,
             )
         except Exception as e:
             raise ProviderError(f"Anthropic error: {e}")
 
-    async def _generate_google(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+    async def _generate_google(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
         # Placeholder for Google Generative AI
         # In production, use google.generativeai
         return TextResponse(
@@ -139,10 +158,12 @@ class TextAdapter(BaseModalityAdapter):
             provider="google",
             cost=0.0,
             tokens_input=0,
-            tokens_output=0
+            tokens_output=0,
         )
 
-    async def _generate_local(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+    async def _generate_local(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
         # Placeholder for Ollama
         # Use httpx to call local endpoint
         return TextResponse(
@@ -152,10 +173,12 @@ class TextAdapter(BaseModalityAdapter):
             provider="local",
             cost=0.0,
             tokens_input=0,
-            tokens_output=0
+            tokens_output=0,
         )
 
-    async def _generate_huggingface(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+    async def _generate_huggingface(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
         # Placeholder for Hugging Face Inference API
         return TextResponse(
             content="[Hugging Face response placeholder]",
@@ -164,10 +187,12 @@ class TextAdapter(BaseModalityAdapter):
             provider="huggingface",
             cost=0.0,
             tokens_input=0,
-            tokens_output=0
+            tokens_output=0,
         )
 
-    async def _generate_bedrock(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+    async def _generate_bedrock(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
         # Placeholder for AWS Bedrock
         return TextResponse(
             content="[Bedrock response placeholder]",
@@ -176,10 +201,12 @@ class TextAdapter(BaseModalityAdapter):
             provider="aws_bedrock",
             cost=0.0,
             tokens_input=0,
-            tokens_output=0
+            tokens_output=0,
         )
 
-    async def _generate_mistral(self, prompt: str, model: str, max_tokens: int, temperature: float) -> TextResponse:
+    async def _generate_mistral(
+        self, prompt: str, model: str, max_tokens: int, temperature: float
+    ) -> TextResponse:
         # Placeholder for Mistral API
         return TextResponse(
             content="[Mistral response placeholder]",
@@ -188,10 +215,12 @@ class TextAdapter(BaseModalityAdapter):
             provider="mistral",
             cost=0.0,
             tokens_input=0,
-            tokens_output=0
+            tokens_output=0,
         )
 
-    async def generate_stream(self, inputs: list[Any], provider: str = "openai", **kwargs):
+    async def generate_stream(
+        self, inputs: list[Any], provider: str = "openai", **kwargs
+    ):
         prompt = self._extract_prompt(inputs)
         client = self.clients.get(provider)
         if not client:
@@ -201,7 +230,7 @@ class TextAdapter(BaseModalityAdapter):
             stream = await client.chat.completions.create(
                 model="gpt-4o",
                 messages=[{"role": "user", "content": prompt}],
-                stream=True
+                stream=True,
             )
             async for chunk in stream:
                 if chunk.choices[0].delta.content:
@@ -234,5 +263,5 @@ class TextAdapter(BaseModalityAdapter):
 
     async def close(self):
         for client in self.clients.values():
-            if hasattr(client, 'close'):
+            if hasattr(client, "close"):
                 await client.close()

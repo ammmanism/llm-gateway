@@ -11,12 +11,14 @@ from .base import BaseModalityAdapter, ModalityResponse
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class VideoResponse(ModalityResponse):
     duration_seconds: int = 0
     width: int = 0
     height: int = 0
     fps: int = 0
+
 
 class VideoAdapter(BaseModalityAdapter):
     """
@@ -35,12 +37,18 @@ class VideoAdapter(BaseModalityAdapter):
 
     def _init_clients(self):
         import os
+
         if os.getenv("REPLICATE_API_TOKEN"):
             import replicate
-            self.clients["replicate"] = replicate.Client(os.getenv("REPLICATE_API_TOKEN"))
+
+            self.clients["replicate"] = replicate.Client(
+                os.getenv("REPLICATE_API_TOKEN")
+            )
         # Runway/Pika clients on-demand
 
-    async def generate(self, inputs: list[Any], provider: str = "replicate", **kwargs) -> VideoResponse:
+    async def generate(
+        self, inputs: list[Any], provider: str = "replicate", **kwargs
+    ) -> VideoResponse:
         prompt = self._extract_prompt(inputs)
         model = kwargs.get("model") or self._default_model(provider)
         duration = kwargs.get("duration", 4)
@@ -49,13 +57,26 @@ class VideoAdapter(BaseModalityAdapter):
         fps = kwargs.get("fps", 24)
 
         if provider == "replicate":
-            return await self._generate_replicate(prompt, model, duration, width, height, fps, inputs)
+            return await self._generate_replicate(
+                prompt, model, duration, width, height, fps, inputs
+            )
         elif provider == "google":
-            return await self._generate_google(prompt, model, duration, width, height, fps)
+            return await self._generate_google(
+                prompt, model, duration, width, height, fps
+            )
         else:
             raise ValueError(f"Unknown provider: {provider}")
 
-    async def _generate_replicate(self, prompt: str, model: str, duration: int, width: int, height: int, fps: int, inputs: list[Any]) -> VideoResponse:
+    async def _generate_replicate(
+        self,
+        prompt: str,
+        model: str,
+        duration: int,
+        width: int,
+        height: int,
+        fps: int,
+        inputs: list[Any],
+    ) -> VideoResponse:
         client = self.clients.get("replicate")
         if not client:
             raise ProviderError("Replicate client not initialized")
@@ -74,13 +95,12 @@ class VideoAdapter(BaseModalityAdapter):
                         "image": image_input,
                         "motion_bucket_id": 127,
                         "noise_aug_strength": 0.02,
-                        "frames": duration * fps
-                    }
+                        "frames": duration * fps,
+                    },
                 )
             else:
                 output = client.run(
-                    model,
-                    input={"prompt": prompt, "num_frames": duration * fps}
+                    model, input={"prompt": prompt, "num_frames": duration * fps}
                 )
             video_url = output if isinstance(output, str) else output[0]
             cost = self.pricing.get(model, {}).get("per_4s", 0.05) * (duration / 4)
@@ -93,12 +113,14 @@ class VideoAdapter(BaseModalityAdapter):
                 duration_seconds=duration,
                 width=width,
                 height=height,
-                fps=fps
+                fps=fps,
             )
         except Exception as e:
             raise ProviderError(f"Replicate video error: {e}")
 
-    async def _generate_google(self, prompt: str, model: str, duration: int, width: int, height: int, fps: int) -> VideoResponse:
+    async def _generate_google(
+        self, prompt: str, model: str, duration: int, width: int, height: int, fps: int
+    ) -> VideoResponse:
         # Placeholder for Google Video Generation (if available)
         return VideoResponse(
             content="https://example.com/video.mp4",
@@ -109,7 +131,7 @@ class VideoAdapter(BaseModalityAdapter):
             duration_seconds=duration,
             width=width,
             height=height,
-            fps=fps
+            fps=fps,
         )
 
     async def generate_stream(self, inputs: list[Any], **kwargs):
@@ -128,7 +150,7 @@ class VideoAdapter(BaseModalityAdapter):
     def _default_model(self, provider: str) -> str:
         defaults = {
             "replicate": "stability-ai/stable-video-diffusion",
-            "google": "gemini-pro-vision"
+            "google": "gemini-pro-vision",
         }
         return defaults.get(provider, "stability-ai/stable-video-diffusion")
 

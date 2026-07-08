@@ -16,11 +16,14 @@ class ModalityResponse:
     cost: float
     from_cache: bool = False
 
+
 class BaseModalityAdapter(ABC):
     """Abstract base class for all modality adapters."""
 
     @abstractmethod
-    async def generate(self, inputs: list[Any], provider: str = "openai", **kwargs) -> ModalityResponse:
+    async def generate(
+        self, inputs: list[Any], provider: str = "openai", **kwargs
+    ) -> ModalityResponse:
         """Generate output from inputs."""
         pass
 
