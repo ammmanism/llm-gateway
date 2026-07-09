@@ -232,3 +232,20 @@ Output valid JSON now:"""
                 ):
                     return False
         return True
+
+    def validate_json(self, data: str, schema: dict) -> bool:
+        import json
+        try:
+            parsed = json.loads(data)
+            return self._validate_dict(parsed, schema)
+        except (json.JSONDecodeError, TypeError):
+            return False
+
+    def _validate_dict(self, d: dict, schema: dict) -> bool:
+        for key, rules in schema.items():
+            if key not in d:
+                return False
+            if isinstance(rules, dict):
+                if not isinstance(d[key], dict) or not self._validate_dict(d[key], rules):
+                    return False
+        return True
