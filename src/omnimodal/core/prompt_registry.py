@@ -334,3 +334,8 @@ class PromptRegistry:
             for pid, p in self._registry.items()
         }
         return json.dumps(data, indent=2)
+
+    def export_json(self) -> str:
+        import json
+        data = {pid: {"template": p.template, "version": self.get_version(pid), "created_at": getattr(p, "created_at", "")} for pid, p in self._registry.items()}
+        return json.dumps(data, indent=2)
