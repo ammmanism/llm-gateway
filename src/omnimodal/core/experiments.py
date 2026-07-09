@@ -293,3 +293,12 @@ class ExperimentEngine:
             "total_cost": sum(v.total_cost for v in exp.variants),
             "total_latency": sum(v.total_latency for v in exp.variants),
         }
+
+    def prune_stale(self, max_age_days: int = 30) -> int:
+        import time
+        now = time.time()
+        threshold = now - (max_age_days * 86400)
+        stale = [eid for eid, e in self.experiments.items() if getattr(e, "created_at", 0) < threshold]
+        for eid in stale:
+            del self.experiments[eid]
+        return len(stale)
