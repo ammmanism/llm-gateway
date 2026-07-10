@@ -302,3 +302,15 @@ class ExperimentEngine:
         for eid in stale:
             del self.experiments[eid]
         return len(stale)
+
+    def enable(self, exp_id: str) -> bool:
+        if exp_id in self.experiments:
+            self.experiments[exp_id].enabled = True
+            return True
+        return False
+
+    def disable(self, exp_id: str) -> bool:
+        if exp_id in self.experiments:
+            self.experiments[exp_id].enabled = False
+            return True
+        return False
