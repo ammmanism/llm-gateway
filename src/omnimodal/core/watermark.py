@@ -200,3 +200,9 @@ class WatermarkManager:
 
     def _embed(self, img, wm):
         return img
+
+    def verify_file(self, image_path: str, key: str = None) -> str | None:
+        from PIL import Image
+        img = Image.open(image_path)
+        wm = self._extract(img, key)
+        return self._decode(wm, key)
