@@ -176,3 +176,7 @@ class AdaptiveConcurrencyLimiter:
             return True
         except asyncio.TimeoutError:
             return False
+
+    def release(self) -> None:
+        self._semaphore.release()
+        self._current_load = max(0, self._current_load - 1)
