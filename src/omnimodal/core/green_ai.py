@@ -161,3 +161,11 @@ class CarbonBudgetEnforcer:
 
     def log_carbon_trace(self, trace_id: str) -> dict:
         return {"trace_id": trace_id, "carbon_g": self.total_carbon, "budget_g": self.carbon_budget, "remaining_g": self.budget_remaining}
+
+    _carbon_intensity: float = 475.0  # g/kWh global avg
+
+    def set_carbon_intensity(self, intensity: float) -> None:
+        self._carbon_intensity = intensity
+
+    def get_carbon_intensity(self) -> float:
+        return self._carbon_intensity
