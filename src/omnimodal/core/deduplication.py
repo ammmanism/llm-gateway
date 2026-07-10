@@ -186,3 +186,10 @@ class RequestCoalescer:
     def _compute_fingerprint(self, content: str) -> str:
         import hashlib
         return hashlib.sha256(content.encode("utf-8")).hexdigest()
+
+    def is_duplicate_content(self, content: str) -> bool:
+        fp = self._compute_fingerprint(content)
+        if fp in self._seen_hashes:
+            return True
+        self._seen_hashes.add(fp)
+        return False
