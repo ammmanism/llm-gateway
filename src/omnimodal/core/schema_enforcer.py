@@ -249,3 +249,8 @@ Output valid JSON now:"""
                 if not isinstance(d[key], dict) or not self._validate_dict(d[key], rules):
                     return False
         return True
+
+    _allowed_values: dict[str, list] = {}
+
+    def set_allowed_values(self, field: str, values: list) -> None:
+        self._allowed_values[field] = values
