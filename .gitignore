@@ -25,3 +25,8 @@ benchmark.png
 CVS/
 .DS_Store
 *.db
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.benchmarks/
