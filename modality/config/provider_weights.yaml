@@ -1,0 +1,44 @@
+# Custom scoring weights per modality and provider.
+# Overrides default router scoring.
+
+text:
+  openai:
+    quality: 9.5
+    cost_factor: 1.0
+    latency_ms: 800
+  anthropic:
+    quality: 9.3
+    cost_factor: 1.5
+    latency_ms: 1200
+  google:
+    quality: 8.8
+    cost_factor: 0.5
+    latency_ms: 1000
+  local:
+    quality: 6.5
+    cost_factor: 0.0
+    latency_ms: 300
+
+image:
+  openai:
+    quality: 8.5
+    cost_factor: 1.0
+    latency_ms: 6000
+  stability:
+    quality: 7.5
+    cost_factor: 0.4
+    latency_ms: 5000
+  google:
+    quality: 8.0
+    cost_factor: 0.8
+    latency_ms: 4000
+
+video:
+  replicate:
+    quality: 8.0
+    cost_factor: 1.0
+    latency_ms: 15000
+  google:
+    quality: 8.5
+    cost_factor: 1.2
+    latency_ms: 10000

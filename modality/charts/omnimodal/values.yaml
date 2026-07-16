@@ -1,0 +1,63 @@
+# Default values for omnimodal.
+replicaCount: 2
+
+image:
+  repository: omnimodal/omnimodal
+  tag: latest
+  pullPolicy: IfNotPresent
+
+service:
+  type: ClusterIP
+  port: 8000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - host: omnimodal.local
+      paths:
+        - path: /
+          pathType: Prefix
+
+resources:
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+  requests:
+    cpu: 500m
+    memory: 512Mi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+redis:
+  enabled: true
+  url: "redis://redis:6379/0"
+
+env:
+  - name: OMNI_ENV
+    value: "production"
+  - name: LOG_LEVEL
+    value: "INFO"
+  - name: OPENAI_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: omnimodal-secrets
+        key: openai-api-key
+  - name: ANTHROPIC_API_KEY
+    valueFrom:
+      secretKeyRef:
+        name: omnimodal-secrets
+        key: anthropic-api-key
+  - name: REDIS_URL
+    value: "redis://redis:6379/0"
+
+persistence:
+  enabled: false
+
+prometheus:
+  enabled: true

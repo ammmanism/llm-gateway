@@ -1,0 +1,21 @@
+name: Chaos Engineering
+on:
+  schedule:
+    - cron: "0 4 * * 0"  # weekly
+jobs:
+  chaos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: make install
+      - run: pytest tests/chaos/ -v --chaos
+      - uses: slackapi/slack-github-action@v2
+        if: failure()
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            {"text": "Chaos test failed! Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"}

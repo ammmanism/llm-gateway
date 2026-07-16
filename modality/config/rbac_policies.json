@@ -1,0 +1,17 @@
+{
+  "roles": {
+    "admin": {
+      "permissions": ["*"]
+    },
+    "developer": {
+      "permissions": ["generate", "fuse", "transcribe", "cost_report"]
+    },
+    "viewer": {
+      "permissions": ["health", "providers"]
+    },
+    "billing": {
+      "permissions": ["cost_report", "budget_alerts"]
+    }
+  },
+  "default_role": "developer"
+}
