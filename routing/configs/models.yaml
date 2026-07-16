@@ -1,0 +1,61 @@
+models:
+  - name: gpt-3.5-turbo
+    cost_per_1k_tokens: 0.002
+    latency_ms: 800
+    provider: openai
+
+  - name: gpt-4
+    cost_per_1k_tokens: 0.03
+    latency_ms: 2000
+    provider: openai
+
+  - name: claude-3-haiku
+    cost_per_1k_tokens: 0.00025
+    latency_ms: 500
+    provider: anthropic
+
+  - name: claude-3-sonnet
+    cost_per_1k_tokens: 0.003
+    latency_ms: 1200
+    provider: anthropic
+
+  - name: gemini-1.5-flash
+    cost_per_1k_tokens: 0.00035
+    latency_ms: 600
+    provider: google
+
+  - name: gemini-1.5-pro
+    cost_per_1k_tokens: 0.0035
+    latency_ms: 1500
+    provider: google
+
+  - name: llama-3-8b
+    cost_per_1k_tokens: 0.0001
+    latency_ms: 300
+    provider: together
+
+  - name: "llama3-70b-8192"
+    provider: "groq"
+    cost_per_1k_tokens: 0.0007
+    latency_ms: 450
+  - name: "llama3-8b-8192"
+    provider: "groq"
+    cost_per_1k_tokens: 0.0001
+    latency_ms: 250
+
+  - name: mixtral-8x7b
+    cost_per_1k_tokens: 0.0006
+    latency_ms: 800
+    provider: together
+
+  - name: local-llama3
+    cost_per_1k_tokens: 0.0
+    latency_ms: 150
+    provider: ollama
+
+  - name: local-vllm-model
+    cost_per_1k_tokens: 0.0
+    latency_ms: 50
+    provider: vllm
+
+# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
