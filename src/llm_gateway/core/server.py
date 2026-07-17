@@ -10,41 +10,41 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
-from caching.cache_manager import CacheManager
-from gateway.control_plane.fallback_policies import get_fallback_chain_from_policy
-from gateway.control_plane.fallback_policies import router as fallback_router
-from gateway.control_plane.router import init_admin_deps
-from gateway.control_plane.router import router as admin_router
-from gateway.core.batcher import NexusBatcher
-from gateway.core.cost_tracker import NexusCostTracker
-from gateway.core.heartbeat import HeartbeatMonitor
-from load_balancing.least_busy import LeastBusyBalancer
-from multi_tenant.budget_enforcer import BudgetEnforcer
-from multi_tenant.quota_manager import QuotaManager
-from observability.logging_middleware import StructuredLoggingMiddleware
-from observability.metrics.cost_metrics import record_cost
-from observability.metrics.prometheus import (
+from llm_gateway.cache.cache_manager import CacheManager
+from llm_gateway.core.control_plane.fallback_policies import get_fallback_chain_from_policy
+from llm_gateway.core.control_plane.fallback_policies import router as fallback_router
+from llm_gateway.core.control_plane.router import init_admin_deps
+from llm_gateway.core.control_plane.router import router as admin_router
+from llm_gateway.core.core.batcher import NexusBatcher
+from llm_gateway.core.core.cost_tracker import NexusCostTracker
+from llm_gateway.core.core.heartbeat import HeartbeatMonitor
+from llm_gateway.routing.load_balancing.least_busy import LeastBusyBalancer
+from llm_gateway.auth.budget_enforcer import BudgetEnforcer
+from llm_gateway.auth.quota_manager import QuotaManager
+from llm_gateway.observability.logging_middleware import StructuredLoggingMiddleware
+from llm_gateway.observability.metrics.cost_metrics import record_cost
+from llm_gateway.observability.metrics.prometheus import (
     failure_counter,
     latency_histogram,
     metrics_endpoint,
     request_counter,
 )
-from observability.tracing.open_telemetry import init_tracing, trace_span
-from providers.factory import ProviderFactory
-from routers.adaptive import AdaptiveRouter
-from routers.cost_aware import CostAwareRouter
-from routers.fallback import FallbackRouter
-from routers.latency_aware import LatencyAwareRouter
-from templates.manager import template_manager
+from llm_gateway.observability.tracing.open_telemetry import init_tracing, trace_span
+from llm_gateway.providers.factory import ProviderFactory
+from llm_gateway.routing.adaptive import AdaptiveRouter
+from llm_gateway.routing.cost_aware import CostAwareRouter
+from llm_gateway.routing.fallback import FallbackRouter
+from llm_gateway.routing.latency_aware import LatencyAwareRouter
+from llm_gateway.utils.template_manager import template_manager
 from typing import Optional, Dict, Any
 
 # Security
-from security.auth import APIKeyAuthMiddleware
-from security.cors import configure_cors
-from security.firewall import SentinelFirewall
-from security.headers import SecurityHeadersMiddleware
-from security.rate_limiter import RateLimiter
-from tests.chaos.chaos_controller import ChaosMode, chaos
+from llm_gateway.security.auth import APIKeyAuthMiddleware
+from llm_gateway.security.cors import configure_cors
+from llm_gateway.security.firewall import SentinelFirewall
+from llm_gateway.security.headers import SecurityHeadersMiddleware
+from llm_gateway.security.rate_limiter import RateLimiter
+from llm_gateway.reliability.chaos_controller import ChaosMode, chaos
 
 # Configure logging
 logging.basicConfig(

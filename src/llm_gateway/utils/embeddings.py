@@ -2,7 +2,7 @@ import numpy as np
 from sentence_transformers import SentenceTransformer
 import asyncio
 from typing import List, Any
-from src.utils.logger import get_logger
+from llm_gateway.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

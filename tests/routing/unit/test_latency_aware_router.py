@@ -1,6 +1,6 @@
 import pytest
 
-from routers.latency_aware import LatencyAwareRouter
+from llm_gateway.routing.latency_aware import LatencyAwareRouter
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,19 @@
-from fastapi import Request, HTTPException
+from fastapi import Request, HTTPException, Depends
 from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import os
+
+security_scheme = HTTPBearer(auto_error=False)
+
+
+async def require_admin_api_key(credentials: HTTPAuthorizationCredentials = Depends(security_scheme)):
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Missing API key")
+    api_key = credentials.credentials
+    if not api_key.startswith("sk-"):
+        raise HTTPException(status_code=401, detail="Invalid API Key")
+    return api_key
+
 
 class APIKeyAuthMiddleware(BaseHTTPMiddleware):
     """Middleware for API key authentication."""

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from gateway.core.cost_tracker import DEFAULT_PRICE_PER_1K_TOKENS, NexusCostTracker, TokenUsage
+from llm_gateway.core.core.cost_tracker import DEFAULT_PRICE_PER_1K_TOKENS, NexusCostTracker, TokenUsage
 
 
 def write_models_config(path: Path) -> None:

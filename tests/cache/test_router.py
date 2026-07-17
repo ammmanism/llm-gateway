@@ -1,4 +1,4 @@
-from src.router.smart_router import smart_router, EWMATracker, CircuitBreaker
+from llm_gateway.routing.smart_router import smart_router, EWMATracker, CircuitBreaker
 
 def test_router_selection():
     # Force a scenario

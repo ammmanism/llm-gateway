@@ -5,7 +5,7 @@ from typing import Any, Dict, List, Optional
 import yaml
 from pydantic import BaseModel, Field
 
-from routers.base import BaseRouter
+from llm_gateway.routing.base import BaseRouter
 
 logger = logging.getLogger(__name__)
 

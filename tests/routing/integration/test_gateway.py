@@ -5,7 +5,7 @@ from typing import Dict
 
 # This requires the server to be running or use TestClient
 from fastapi.testclient import TestClient
-from gateway.server import app
+from llm_gateway.core.server import app
 
 client = TestClient(app)
 

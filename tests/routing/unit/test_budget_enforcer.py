@@ -1,6 +1,6 @@
 import pytest
 
-from multi_tenant.budget_enforcer import BudgetEnforcer
+from llm_gateway.auth.budget_enforcer import BudgetEnforcer
 
 
 @pytest.mark.asyncio

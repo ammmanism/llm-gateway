@@ -1,7 +1,9 @@
 import json
-from src.cache.semantic import semantic_cache
-from src.utils.tokenizer import count_tokens
-from src.providers import get_provider
+from llm_gateway.cache.semantic import semantic_cache
+from llm_gateway.utils.tokenizer import count_tokens
+from llm_gateway.providers.factory import ProviderFactory
+
+get_provider = ProviderFactory.get_provider
 
 async def warm_cache_from_jsonl(file_content: str, tenant_id: str) -> int:
     """

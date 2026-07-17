@@ -2,8 +2,8 @@ import asyncio
 
 import asyncpg
 
-from src.config import settings
-from src.utils.logger import get_logger
+from llm_gateway.config import settings
+from llm_gateway.utils.logger import get_logger
 
 logger = get_logger(__name__)
 

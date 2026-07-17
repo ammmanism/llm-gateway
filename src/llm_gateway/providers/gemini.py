@@ -3,9 +3,9 @@ import asyncio
 import json
 import logging
 from typing import Dict, Any, AsyncIterator
-from providers.abstract import BaseProvider
-from reliability.retry import retry
-from reliability.circuit_breaker import CircuitBreaker
+from llm_gateway.providers.abstract import BaseProvider
+from llm_gateway.reliability.retry import retry
+from llm_gateway.reliability.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 

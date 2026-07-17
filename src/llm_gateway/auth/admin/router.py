@@ -5,7 +5,7 @@ import secrets
 import hashlib
 import json
 import uuid
-from src.security import require_admin_api_key
+from llm_gateway.security.auth import require_admin_api_key
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_api_key)])
 

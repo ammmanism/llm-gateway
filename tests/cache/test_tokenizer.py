@@ -1,4 +1,4 @@
-from src.utils.tokenizer import count_tokens, count_message_tokens
+from llm_gateway.utils.tokenizer import count_tokens, count_message_tokens
 
 def test_count_tokens_openai():
     # Test valid OpenAI model

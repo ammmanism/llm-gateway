@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
-from src.main import app
+from llm_gateway.core.server import app
 
 client = TestClient(app)
 
@@ -12,8 +12,8 @@ async def test_warm_cache_from_jsonl_parser():
         '{"query": "What is 2+2?", "response": "4", "model": "gpt-4o-mini", "provider": "openai"}\n'
     )
     
-    with patch("src.cache.warmer.semantic_cache.store_cache", new_callable=AsyncMock) as mock_store:
-        from src.cache.warmer import warm_cache_from_jsonl
+    with patch("llm_gateway.cache.warmer.semantic_cache.store_cache", new_callable=AsyncMock) as mock_store:
+        from llm_gateway.cache.warmer import warm_cache_from_jsonl
         count = await warm_cache_from_jsonl(jsonl_content, "tenant_free_1")
         assert count == 2
         assert mock_store.call_count == 2
@@ -28,10 +28,10 @@ async def test_warm_cache_from_jsonl_parser():
 def test_warm_cache_endpoint():
     jsonl_data = '{"query": "a", "response": "b"}\n'
     
-    with patch("src.cache.warmer.warm_cache_from_jsonl", new_callable=AsyncMock) as mock_warm:
+    with patch("llm_gateway.cache.warmer.warm_cache_from_jsonl", new_callable=AsyncMock) as mock_warm:
         mock_warm.return_value = 1
         
-        with patch("src.main.semantic_cache.initialize", new_callable=AsyncMock):
+        with patch("llm_gateway.core.server.semantic_cache.initialize", new_callable=AsyncMock):
             with TestClient(app) as client:
                 response = client.post(
                     "/v1/cache/warm",

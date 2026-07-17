@@ -1,8 +1,8 @@
 from unittest.mock import AsyncMock
 
 import pytest_asyncio
-from omnimodal.gateway.cost_optimizer import CostOptimizer
-from omnimodal.gateway.router import RouteDecision
+from llm_gateway.routing.cost_optimizer import CostOptimizer
+from llm_gateway.routing import RouteDecision
 
 
 class TestCostOptimizer:

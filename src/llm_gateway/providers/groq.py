@@ -3,7 +3,7 @@ import json
 import logging
 import os
 from typing import Dict, Any, AsyncIterator
-from providers.abstract import BaseProvider
+from llm_gateway.providers.abstract import BaseProvider
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 logger = logging.getLogger(__name__)

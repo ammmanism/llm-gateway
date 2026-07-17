@@ -1,7 +1,7 @@
 import pytest
 import json
 from unittest.mock import AsyncMock, patch, MagicMock
-from src.providers.anthropic import AnthropicProvider
+from llm_gateway.providers.anthropic import AnthropicProvider
 
 @pytest.mark.asyncio
 async def test_anthropic_stream():

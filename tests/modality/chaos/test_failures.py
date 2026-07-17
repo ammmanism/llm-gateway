@@ -3,13 +3,13 @@ import random
 from unittest.mock import AsyncMock
 
 import pytest
-from omnimodal.core.concurrency import AdaptiveConcurrencyLimiter
-from omnimodal.core.deduplication import RequestCoalescer
-from omnimodal.core.experiments import ExperimentEngine
-from omnimodal.core.prompt_registry import PromptRegistry
-from omnimodal.core.schema_enforcer import JSONSchemaEnforcer
-from omnimodal.gateway.circuit_breaker import CircuitBreaker
-from omnimodal.gateway.fallback import FallbackChain
+from llm_gateway.core.concurrency import AdaptiveConcurrencyLimiter
+from llm_gateway.core.deduplication import RequestCoalescer
+from llm_gateway.core.experiments import ExperimentEngine
+from llm_gateway.core.prompt_registry import PromptRegistry
+from llm_gateway.core.schema_enforcer import JSONSchemaEnforcer
+from llm_gateway.reliability.circuit_breaker import CircuitBreaker
+from llm_gateway.routing.fallback import FallbackChain
 
 
 class TestChaosCircuitBreaker:

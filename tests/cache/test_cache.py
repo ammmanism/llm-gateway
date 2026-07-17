@@ -1,5 +1,5 @@
-from src.cache.ttl import calculate_ttl, get_ttl_seconds
-from src.cache.drift_detector import DriftDetector
+from llm_gateway.cache.ttl import calculate_ttl, get_ttl_seconds
+from llm_gateway.cache.drift_detector import DriftDetector
 from datetime import datetime, timedelta
 
 def test_ttl_calculation():

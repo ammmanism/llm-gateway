@@ -1,5 +1,5 @@
 import pytest_asyncio
-from omnimodal.gateway.router import RouteDecision, SemanticRouter
+from llm_gateway.routing import RouteDecision, SemanticRouter
 
 
 class TestSemanticRouter:

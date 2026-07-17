@@ -1,4 +1,4 @@
-from omnimodal.core.green_ai import CarbonBudgetEnforcer, CarbonTracker
+from llm_gateway.core.green_ai import CarbonBudgetEnforcer, CarbonTracker
 
 
 class TestCarbonTracker:

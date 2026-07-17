@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
-from src.main import app
+from llm_gateway.core.server import app
 
 @pytest.fixture
 def mock_pg_pool():
@@ -18,7 +18,7 @@ def mock_pg_pool():
 def test_create_tenant(mock_pg_pool):
     pool, conn = mock_pg_pool
     
-    with patch("src.main.semantic_cache.initialize", new_callable=AsyncMock):
+    with patch("llm_gateway.core.server.semantic_cache.initialize", new_callable=AsyncMock):
         with TestClient(app) as client:
             client.app.state.pg_pool = pool
             
@@ -63,7 +63,7 @@ def test_list_tenants(mock_pg_pool):
     }
     conn.fetch = AsyncMock(return_value=[mock_row])
     
-    with patch("src.main.semantic_cache.initialize", new_callable=AsyncMock):
+    with patch("llm_gateway.core.server.semantic_cache.initialize", new_callable=AsyncMock):
         with TestClient(app) as client:
             client.app.state.pg_pool = pool
             
@@ -84,7 +84,7 @@ def test_delete_tenant(mock_pg_pool):
     mock_tenant_manager = MagicMock()
     mock_tenant_manager.redis = mock_redis
     
-    with patch("src.main.semantic_cache.initialize", new_callable=AsyncMock):
+    with patch("llm_gateway.core.server.semantic_cache.initialize", new_callable=AsyncMock):
         with TestClient(app) as client:
             client.app.state.pg_pool = pool
             client.app.state.tenant_manager = mock_tenant_manager

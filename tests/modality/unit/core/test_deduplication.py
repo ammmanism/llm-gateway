@@ -1,6 +1,6 @@
 import asyncio
 
-from omnimodal.core.deduplication import RequestCoalescer
+from llm_gateway.core.deduplication import RequestCoalescer
 
 
 class TestRequestCoalescer:

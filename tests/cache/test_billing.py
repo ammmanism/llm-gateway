@@ -1,4 +1,4 @@
-from src.billing.meter import UsageMeter
+from llm_gateway.billing.meter import UsageMeter
 
 def test_savings_calculation():
     meter = UsageMeter()

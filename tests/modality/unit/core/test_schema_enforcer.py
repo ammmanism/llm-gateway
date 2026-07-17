@@ -1,4 +1,4 @@
-from omnimodal.core.schema_enforcer import JSONSchemaEnforcer
+from llm_gateway.core.schema_enforcer import JSONSchemaEnforcer
 
 
 class TestJSONSchemaEnforcer:

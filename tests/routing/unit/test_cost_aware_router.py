@@ -1,6 +1,6 @@
 import pytest
 
-from routers.cost_aware import CostAwareRouter
+from llm_gateway.routing.cost_aware import CostAwareRouter
 
 
 @pytest.mark.asyncio

@@ -6,21 +6,21 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from omnimodal.main import app
+from llm_gateway.core.server import app
 
 
 @pytest_asyncio.fixture
 async def client():
     """Async HTTP client with manual lifespan execution."""
-    from omnimodal.core.green_ai import CarbonTracker
-    from omnimodal.gateway.cost_optimizer import CostOptimizer
-    from omnimodal.gateway.fallback import FallbackChain
-    from omnimodal.gateway.router import SemanticRouter
-    from omnimodal.modalities.audio import AudioAdapter
-    from omnimodal.modalities.image import ImageAdapter
-    from omnimodal.modalities.text import TextAdapter
-    from omnimodal.modalities.video import VideoAdapter
-    from omnimodal.observability.metrics import MetricsCollector
+    from llm_gateway.core.green_ai import CarbonTracker
+    from llm_gateway.routing.cost_optimizer import CostOptimizer
+    from llm_gateway.routing.fallback import FallbackChain
+    from llm_gateway.routing import SemanticRouter
+    from llm_gateway.modality.audio import AudioAdapter
+    from llm_gateway.modality.image import ImageAdapter
+    from llm_gateway.modality.text import TextAdapter
+    from llm_gateway.modality.video import VideoAdapter
+    from llm_gateway.observability.metrics import MetricsCollector
 
     app.state.router = SemanticRouter()
     app.state.cost_optimizer = CostOptimizer()
@@ -79,7 +79,7 @@ class TestGenerationEndpoints:
             )
 
         monkeypatch.setattr(
-            "omnimodal.modalities.text.TextAdapter.generate", mock_generate
+            "llm_gateway.modality.text.TextAdapter.generate", mock_generate
         )
 
         response = await client.post(
@@ -116,7 +116,7 @@ class TestFusionEndpoints:
     async def test_fuse_text_to_image(self, client, monkeypatch):
         """Test basic fusion operation."""
         monkeypatch.setattr(
-            "omnimodal.fusion.planner.FusionPlanner.plan",
+            "llm_gateway.modality.fusion.planner.FusionPlanner.plan",
             MagicMock(
                 return_value=MagicMock(
                     stages=[],

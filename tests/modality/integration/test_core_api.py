@@ -1,15 +1,15 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
-from omnimodal.config import settings
+from llm_gateway.config import settings
 
 
 @pytest.fixture
 def app():
-    from omnimodal.core.experiments import ExperimentEngine
-    from omnimodal.core.green_ai import CarbonBudgetEnforcer, CarbonTracker
-    from omnimodal.core.prompt_registry import PromptRegistry
-    from omnimodal.core.schema_enforcer import JSONSchemaEnforcer
-    from omnimodal.main import (
+    from llm_gateway.core.experiments import ExperimentEngine
+    from llm_gateway.core.green_ai import CarbonBudgetEnforcer, CarbonTracker
+    from llm_gateway.core.prompt_registry import PromptRegistry
+    from llm_gateway.core.schema_enforcer import JSONSchemaEnforcer
+    from llm_gateway.core.server import (
         CostOptimizer,
         FallbackChain,
         MetricsCollector,

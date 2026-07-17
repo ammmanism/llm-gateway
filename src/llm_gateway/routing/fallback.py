@@ -1,5 +1,5 @@
 from typing import List, Dict, Any
-from routers.base import BaseRouter
+from llm_gateway.routing.base import BaseRouter
 
 class FallbackRouter(BaseRouter):
     """

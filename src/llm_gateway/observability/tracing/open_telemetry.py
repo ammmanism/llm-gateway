@@ -1,4 +1,4 @@
-from opentelemetry import trace
+from opentelemetry import trace as otel_trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
@@ -27,7 +27,7 @@ def init_tracing(app=None, service_name: str = "llm-gateway"):
     try:
         processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint))
         provider.add_span_processor(processor)
-        trace.set_tracer_provider(provider)
+        otel_trace.set_tracer_provider(provider)
     except Exception as e:
         logger.warning(f"Failed to initialize OTLP exporter: {e}")
     
@@ -46,7 +46,7 @@ def trace_span(name: str, attributes: dict = None):
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
-            tracer = trace.get_tracer(__name__)
+            tracer = otel_trace.get_tracer(__name__)
             with tracer.start_as_current_span(name) as span:
                 if attributes:
                     span.set_attributes(attributes)

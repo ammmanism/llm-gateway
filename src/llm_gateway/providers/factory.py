@@ -1,10 +1,10 @@
-from providers.openai import OpenAIProvider
-from providers.anthropic import AnthropicProvider
-from providers.gemini import GeminiProvider
-from providers.together import TogetherProvider
-from providers.groq import GroqProvider
-from providers.vllm import VLLMProvider
-from providers.ollama import OllamaProvider
+from llm_gateway.providers.openai import OpenAIProvider
+from llm_gateway.providers.anthropic import AnthropicProvider
+from llm_gateway.providers.gemini import GeminiProvider
+from llm_gateway.providers.together import TogetherProvider
+from llm_gateway.providers.groq import GroqProvider
+from llm_gateway.providers.vllm import VLLMProvider
+from llm_gateway.providers.ollama import OllamaProvider
 from typing import Dict, Any, Optional, Set
 
 class ProviderFactory:
@@ -60,4 +60,12 @@ class ProviderFactory:
             
         if provider_key and provider_key not in cls._disabled_providers:
             return cls._providers.get(provider_key)
+        return None
+
+    @classmethod
+    def get_provider(cls, provider_name: str) -> Optional[Any]:
+        """Get a provider instance by its key name."""
+        provider = cls._providers.get(provider_name)
+        if provider and provider_name not in cls._disabled_providers:
+            return provider
         return None

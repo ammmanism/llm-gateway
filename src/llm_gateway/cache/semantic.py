@@ -8,10 +8,10 @@ import hashlib
 import re
 from typing import Dict, Any, Tuple, Optional
 from datetime import datetime
-from src.config import settings
-from src.utils.logger import get_logger
-from src.utils.embeddings import embedding_engine
-from src.cache.drift_detector import DriftDetector
+from llm_gateway.config import settings
+from llm_gateway.utils.logger import get_logger
+from llm_gateway.utils.embeddings import embedding_engine
+from llm_gateway.cache.drift_detector import DriftDetector
 
 logger = get_logger(__name__)
 

@@ -1,4 +1,4 @@
-from omnimodal.core.experiments import ExperimentEngine, ExperimentStatus
+from llm_gateway.core.experiments import ExperimentEngine, ExperimentStatus
 
 
 class TestExperimentEngine:

@@ -1,6 +1,6 @@
 import asyncio
 
-from omnimodal.core.concurrency import AdaptiveConcurrencyLimiter
+from llm_gateway.core.concurrency import AdaptiveConcurrencyLimiter
 
 
 class TestAdaptiveConcurrencyLimiter:

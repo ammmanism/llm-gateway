@@ -7,9 +7,9 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 import pytest_asyncio
-from omnimodal.gateway.cost_optimizer import CostOptimizer
-from omnimodal.gateway.fallback import FallbackChain
-from omnimodal.gateway.router import SemanticRouter
+from llm_gateway.routing.cost_optimizer import CostOptimizer
+from llm_gateway.routing.fallback import FallbackChain
+from llm_gateway.routing import SemanticRouter
 
 
 @pytest.fixture(scope="session")

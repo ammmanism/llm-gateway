@@ -3,7 +3,7 @@ import time
 import httpx
 import json
 import logging
-from providers.abstract import BaseProvider
+from llm_gateway.providers.abstract import BaseProvider
 
 logger = logging.getLogger("cost_aware_llm.providers.vllm")
 

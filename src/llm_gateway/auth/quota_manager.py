@@ -2,7 +2,7 @@ import asyncio
 import time
 from typing import Dict, Any
 
-from observability.webhooks import webhook_manager
+from llm_gateway.observability.webhooks import webhook_manager
 
 class QuotaManager:
     """

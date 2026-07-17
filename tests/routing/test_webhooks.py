@@ -1,7 +1,7 @@
 import pytest
 import asyncio
 from unittest.mock import AsyncMock, patch
-from observability.webhooks import webhook_manager
+from llm_gateway.observability.webhooks import webhook_manager
 
 @pytest.mark.asyncio
 async def test_webhook_manager_registration():

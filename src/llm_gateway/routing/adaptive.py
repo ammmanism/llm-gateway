@@ -7,7 +7,7 @@ import redis.asyncio as redis
 import os
 import json
 import numpy as np
-from routers.base import BaseRouter
+from llm_gateway.routing.base import BaseRouter
 
 logger = logging.getLogger(__name__)
 

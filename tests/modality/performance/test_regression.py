@@ -10,7 +10,7 @@ class TestLatencyRegression:
     @pytest.mark.performance
     @pytest.mark.slow
     async def test_cache_hit_latency(self):
-        from omnimodal.core.deduplication import RequestCoalescer
+        from llm_gateway.core.deduplication import RequestCoalescer
 
         coalescer = RequestCoalescer(exact_ttl_seconds=5.0)
 
@@ -36,7 +36,7 @@ class TestLatencyRegression:
     @pytest.mark.performance
     @pytest.mark.slow
     async def test_concurrency_limiter_overhead(self):
-        from omnimodal.core.concurrency import AdaptiveConcurrencyLimiter
+        from llm_gateway.core.concurrency import AdaptiveConcurrencyLimiter
 
         limiter = AdaptiveConcurrencyLimiter()
 
@@ -72,7 +72,7 @@ class TestThroughputRegression:
     @pytest.mark.performance
     @pytest.mark.slow
     async def test_coalescer_throughput(self):
-        from omnimodal.core.deduplication import RequestCoalescer
+        from llm_gateway.core.deduplication import RequestCoalescer
 
         coalescer = RequestCoalescer(exact_ttl_seconds=1.0)
         call_count = 0

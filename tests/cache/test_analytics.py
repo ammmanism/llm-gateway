@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
-from src.main import app
+from llm_gateway.core.server import app
 
 @pytest.fixture
 def mock_pg_pool():
@@ -35,7 +35,7 @@ async def test_get_cache_analytics(mock_pg_pool):
     ]
     conn.fetch = AsyncMock(return_value=mock_top_queries)
     
-    from src.cache.analytics import get_cache_analytics
+    from llm_gateway.cache.analytics import get_cache_analytics
     tenant_id = "00000000-0000-0000-0000-000000000001"
     stats = await get_cache_analytics(pool, tenant_id)
     
@@ -62,10 +62,10 @@ def test_cache_stats_endpoint(mock_pg_pool):
         "cache_hit_rate": 0.8
     }
     
-    with patch("src.cache.analytics.get_cache_analytics", new_callable=AsyncMock) as mock_analytics:
+    with patch("llm_gateway.cache.analytics.get_cache_analytics", new_callable=AsyncMock) as mock_analytics:
         mock_analytics.return_value = mock_stats
         
-        with patch("src.main.semantic_cache.initialize", new_callable=AsyncMock):
+        with patch("llm_gateway.core.server.semantic_cache.initialize", new_callable=AsyncMock):
             with TestClient(app) as client:
                 client.app.state.pg_pool = pool
                 

@@ -1,7 +1,7 @@
 import tempfile
 
 import pytest
-from omnimodal.core.prompt_registry import PromptRegistry, PromptStatus
+from llm_gateway.core.prompt_registry import PromptRegistry, PromptStatus
 
 
 class TestPromptRegistry:

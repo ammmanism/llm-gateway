@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 
-from omnimodal.gateway.circuit_breaker import CircuitBreaker, CircuitState
+from llm_gateway.reliability.circuit_breaker import CircuitBreaker, CircuitState
 
 
 class TestCircuitBreaker:

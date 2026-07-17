@@ -1,7 +1,7 @@
 import time
 
 import pytest
-from omnimodal.core.watermark import (
+from llm_gateway.core.watermark import (
     ImageWatermarker,
     TextWatermarker,
     Watermark,
