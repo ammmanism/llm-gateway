@@ -1,6 +1,7 @@
 from fastapi import Request, HTTPException, Depends
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.responses import JSONResponse
 import os
 
 security_scheme = HTTPBearer(auto_error=False)
@@ -27,12 +28,12 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
 
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
-            raise HTTPException(status_code=401, detail="Unauthorized")
+            return JSONResponse(status_code=401, content={"detail": "Unauthorized", "mock": False})
         
         # Simple mock validation
         api_key = auth_header.split(" ")[1]
         if not api_key.startswith("sk-"):
-            raise HTTPException(status_code=401, detail="Invalid API Key")
+            return JSONResponse(status_code=401, content={"detail": "Invalid API Key", "mock": False})
         
         # Attach tenant_id to state
         request.state.tenant_id = "default"

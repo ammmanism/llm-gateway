@@ -40,7 +40,8 @@ class TogetherProvider(BaseProvider):
                     "provider": "together",
                     "model": model,
                     "output": output,
-                    "status": "success"
+                    "status": "success",
+                    "mock": True
                 }
 
             import httpx

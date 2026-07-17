@@ -40,7 +40,8 @@ class GeminiProvider(BaseProvider):
                     "provider": "google",
                     "model": model,
                     "output": output,
-                    "status": "success"
+                    "status": "success",
+                    "mock": True
                 }
 
             import httpx

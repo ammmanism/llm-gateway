@@ -118,6 +118,7 @@ class GenerateResponse(BaseModel):
     output: str
     provider: str
     latency_ms: float
+    mock: bool = False
 
 
 def build_cache_key(tenant_id: str, prompt: str) -> str:
@@ -233,6 +234,7 @@ async def generate(request: GenerateRequest, req: Request):
                 output=cached["output"],
                 provider=cached["provider"],
                 latency_ms=latency,
+                mock=cached.get("mock", False),
             )
 
     # Inner generation with batching support
@@ -286,6 +288,7 @@ async def generate(request: GenerateRequest, req: Request):
                     output=result["output"],
                     provider=result["provider"],
                     latency_ms=latency,
+                    mock=result.get("mock", False),
                 )
         except Exception as e:
             logger.warning(f"Model {m_name} failed: {e}")

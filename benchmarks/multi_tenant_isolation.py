@@ -1,70 +1,63 @@
 #!/usr/bin/env python3
 """
-Test multi-tenant isolation: concurrent tenants with quotas.
+Test multi-tenant isolation using the real BudgetEnforcer.
+Concurrent simulated tenant traffic with quota enforcement.
 """
+import asyncio
 import json
-import threading
 import time
 from pathlib import Path
 
-class TenantManager:
-    def __init__(self):
-        self.tenants = {}
-    def create_tenant(self, tenant_id, quota):
-        self.tenants[tenant_id] = {"quota": quota, "usage": 0.0}
-    def check_quota(self, tenant_id):
-        if tenant_id not in self.tenants:
-            return False
-        return self.tenants[tenant_id]["usage"] < self.tenants[tenant_id]["quota"]
-    def log_request(self, tenant_id, cost):
-        if tenant_id in self.tenants:
-            self.tenants[tenant_id]["usage"] += cost
-    def get_usage(self, tenant_id):
-        if tenant_id in self.tenants:
-            return self.tenants[tenant_id]["usage"]
-        return 0
+from llm_gateway.auth.budget_enforcer import BudgetEnforcer
 
-tm_global = TenantManager()
-lock = threading.Lock()
 
-def tenant_worker(tenant_id, quota, requests_to_make):
+async def tenant_worker(be, tenant_id, budget, requests_to_make):
+    """Simulate a tenant making requests until budget exhausted."""
+    made = 0
     for _ in range(requests_to_make):
-        with lock:
-            if tm_global.check_quota(tenant_id):
-                tm_global.log_request(tenant_id, cost=0.01)
-            else:
-                return False
-        time.sleep(0.01)
-    return True
+        ok = await be.check_budget(tenant_id, estimated_cost=0.01)
+        if not ok:
+            break
+        await be.add_cost(tenant_id, cost=0.01)
+        made += 1
+        await asyncio.sleep(0.01)
+    return made
 
-if __name__ == "__main__":
+
+async def main():
+    be = BudgetEnforcer(default_budget=1.0)
+
     tenants = {
-        "tenant_a": {"quota": 100, "requests": 50},
-        "tenant_b": {"quota": 100, "requests": 150},
-        "tenant_c": {"quota": 200, "requests": 80},
+        "tenant_a": {"budget": 1.0, "requests": 50},
+        "tenant_b": {"budget": 1.0, "requests": 150},
+        "tenant_c": {"budget": 2.0, "requests": 80},
     }
-    for tid, cfg in tenants.items():
-        tm_global.create_tenant(tid, quota=cfg["quota"])
 
-    threads = []
+    start = time.perf_counter()
+    tasks = []
     for tid, cfg in tenants.items():
-        t = threading.Thread(target=tenant_worker, args=(tid, cfg["quota"], cfg["requests"]))
-        threads.append(t)
-        t.start()
-    for t in threads:
-        t.join()
+        tasks.append(tenant_worker(be, tid, cfg["budget"], cfg["requests"]))
+    results = await asyncio.gather(*tasks)
+    elapsed = time.perf_counter() - start
 
-    results = {}
-    for tid in tenants:
-        usage = tm_global.get_usage(tid)
-        results[tid] = {
-            "quota": tenants[tid]["quota"],
+    output = {}
+    for i, tid in enumerate(tenants):
+        cfg = tenants[tid]
+        usage = await be.get_spend(tid)
+        output[tid] = {
+            "quota": cfg["budget"],
             "used": round(usage, 2),
-            "within_quota": usage <= tenants[tid]["quota"],
+            "requests_made": results[i],
+            "requests_attempted": cfg["requests"],
+            "within_quota": usage <= cfg["budget"],
         }
 
     out_file = Path("benchmarks/results/multi_tenant.json")
     out_file.parent.mkdir(parents=True, exist_ok=True)
     with open(out_file, "w") as f:
-        json.dump(results, f, indent=2)
-    print(json.dumps(results, indent=2))
+        json.dump(output, f, indent=2)
+    print(json.dumps(output, indent=2))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

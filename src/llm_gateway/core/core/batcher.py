@@ -17,7 +17,7 @@ class NexusBatcher:
         # and combine them. For now, it's a pass-through to maintain compatibility.
         try:
             result = await executor(model, prompt)
-            return {"status": "success", "output": result["output"], "model": model, "provider": result["provider"]}
+            return {"status": "success", "output": result["output"], "model": model, "provider": result["provider"], "mock": result.get("mock", False)}
         except Exception as e:
             logger.error(f"Batcher execution failed: {e}")
             return {"status": "error", "message": str(e)}

@@ -40,7 +40,8 @@ class AnthropicProvider(BaseProvider):
                     "provider": "anthropic",
                     "model": model,
                     "output": output,
-                    "status": "success"
+                    "status": "success",
+                    "mock": True
                 }
 
             import httpx

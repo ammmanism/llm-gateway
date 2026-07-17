@@ -40,7 +40,8 @@ class OpenAIProvider(BaseProvider):
                     "provider": "openai",
                     "model": model,
                     "output": output,
-                    "status": "success"
+                    "status": "success",
+                    "mock": True
                 }
 
             import httpx
