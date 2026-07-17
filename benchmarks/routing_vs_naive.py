@@ -15,10 +15,10 @@ PROVIDER_COSTS = {
     "gemini": 0.0015,
 }
 PROVIDER_LATENCY = {
-    "openai": 0.3,
-    "anthropic": 0.4,
-    "groq": 0.15,
-    "gemini": 0.25,
+    "openai": 0.03,
+    "anthropic": 0.04,
+    "groq": 0.015,
+    "gemini": 0.025,
 }
 
 class MockProvider:

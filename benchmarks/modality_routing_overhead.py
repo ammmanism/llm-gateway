@@ -31,15 +31,16 @@ if __name__ == "__main__":
         "https://example.com/video.mp4",
     ]
     overheads = []
-    for sample in samples:
+    for _ in range(1000):
+        sample = samples[_ % len(samples)]
         with_routing = simulate_request(sample, use_routing=True)
         without_routing = simulate_request(sample, use_routing=False)
         overheads.append(with_routing - without_routing)
 
     result = {
-        "average_overhead_ms": round(sum(overheads) / len(overheads) * 1000, 2),
-        "max_overhead_ms": round(max(overheads) * 1000, 2),
-        "samples": len(samples),
+        "average_overhead_ms": round(sum(overheads) / len(overheads) * 1000, 3),
+        "max_overhead_ms": round(max(overheads) * 1000, 3),
+        "samples": len(overheads),
     }
     out_file = Path("benchmarks/results/modality_overhead.json")
     out_file.parent.mkdir(parents=True, exist_ok=True)
