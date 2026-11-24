@@ -1,0 +1,6 @@
+request_id,tenant_id,provider,model,prompt_tokens,completion_tokens,cost_usd,cache_hit,usage_source,occurred_at,day
+6baa14f0-8ce1-40f4-9e91-340493eedecb,default,fake,gpt-4o,5,12,1.7000000000000003e-05,0,provider,2026-11-24T14:59:25.137780+00:00,2026-11-24
+99427ad6-ea90-41be-acf9-2aaf0140fbe1,default,fake,gpt-4o,0,0,0.0,1,cache,2026-11-24T14:59:25.171526+00:00,2026-11-24
+495b3e06-6861-45c6-a609-3fc8df168f96,default,fake,gpt-4o,5,12,1.7000000000000003e-05,0,provider,2026-11-24T14:59:25.231626+00:00,2026-11-24
+75516a22-9ce6-4e5f-98bd-40cada1d108a,default,fake,gpt-4o-mini,6,12,1.8e-05,0,provider,2026-11-24T14:59:25.250622+00:00,2026-11-24
+9a0d2f0f-f601-4ddf-8830-15e1aa9b718c,default,fake,claude-3-haiku-20240307,5,12,1.7000000000000003e-05,0,provider,2026-11-24T14:59:25.284171+00:00,2026-11-24

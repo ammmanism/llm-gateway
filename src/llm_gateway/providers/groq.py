@@ -26,7 +26,7 @@ class GroqProvider(BaseProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="groq")
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def generate(self, prompt: str, model: str = "llama3-70b-8192", **kwargs: Any) -> Dict[str, Any]:

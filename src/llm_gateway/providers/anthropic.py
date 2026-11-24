@@ -19,7 +19,7 @@ class AnthropicProvider(BaseProvider):
     """
     def __init__(self):
         self.api_key = os.environ.get("ANTHROPIC_API_KEY")
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="anthropic")
         self.default_model = "claude-3-haiku-20240307"
 
     @retry(max_retries=2, backoff_factor=1.0)
@@ -76,6 +76,10 @@ class AnthropicProvider(BaseProvider):
                 "provider": "anthropic",
                 "model": model,
                 "output": output,
+                "usage": {
+                    "input_tokens": data.get("usage", {}).get("input_tokens", 0),
+                    "output_tokens": data.get("usage", {}).get("output_tokens", 0),
+                },
                 "status": "success"
             }
         except Exception as e:

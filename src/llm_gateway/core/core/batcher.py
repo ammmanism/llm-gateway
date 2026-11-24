@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from typing import Dict, Any, Callable
+from typing import Callable, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,14 @@ class NexusBatcher:
         # and combine them. For now, it's a pass-through to maintain compatibility.
         try:
             result = await executor(model, prompt)
-            return {"status": "success", "output": result["output"], "model": model, "provider": result["provider"], "mock": result.get("mock", False)}
+            return {
+                "status": "success",
+                "output": result["output"],
+                "model": model,
+                "provider": result["provider"],
+                "usage": result.get("usage", {}),
+                "mock": result.get("mock", False),
+            }
         except Exception as e:
             logger.error(f"Batcher execution failed: {e}")
             return {"status": "error", "message": str(e)}

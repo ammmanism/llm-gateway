@@ -1,16 +1,19 @@
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-import json
-from unittest.mock import AsyncMock, patch, MagicMock
+
 from llm_gateway.providers.anthropic import AnthropicProvider
+
 
 @pytest.mark.asyncio
 async def test_anthropic_stream():
     provider = AnthropicProvider()
-    
+    provider.api_key = "test-key"
+
     mock_response = AsyncMock()
     mock_response.raise_for_status = MagicMock()
-    
-    # We yield simulated Anthropic SSE lines
+
+    # Simulated Anthropic SSE lines
     async def mock_aiter_lines():
         lines = [
             "event: message_start",
@@ -26,13 +29,13 @@ async def test_anthropic_stream():
             'data: {"type": "message_delta", "delta": {"stop_reason": "end_turn"}}',
             "",
             "event: message_stop",
-            'data: {"type": "message_stop"}'
+            'data: {"type": "message_stop"}',
         ]
         for line in lines:
             yield line
 
     mock_response.aiter_lines = mock_aiter_lines
-    
+
     mock_client = AsyncMock()
     mock_client.__aenter__.return_value = mock_client
     mock_client.stream = MagicMock()
@@ -40,29 +43,15 @@ async def test_anthropic_stream():
     mock_context.__aenter__ = AsyncMock(return_value=mock_response)
     mock_context.__aexit__ = AsyncMock()
     mock_client.stream.return_value = mock_context
-    
+
     with patch("httpx.AsyncClient", return_value=mock_client):
-        chunks = []
-        async for chunk in provider.stream(
-            model="claude-haiku-3.5",
-            messages=[{"role": "user", "content": "Hi"}],
-            params={}
-        ):
-            chunks.append(chunk)
-            
-        assert len(chunks) == 4 # 2 content deltas, 1 message_delta, 1 [DONE]
-        
-        # Verify JSON decoding of first chunk
-        chunk0 = chunks[0].strip().replace("data: ", "")
-        data0 = json.loads(chunk0)
-        assert data0["choices"][0]["delta"]["content"] == "Hello "
-        
-        chunk1 = chunks[1].strip().replace("data: ", "")
-        data1 = json.loads(chunk1)
-        assert data1["choices"][0]["delta"]["content"] == "World!"
-        
-        chunk2 = chunks[2].strip().replace("data: ", "")
-        data2 = json.loads(chunk2)
-        assert data2["choices"][0]["finish_reason"] == "stop"
-        
-        assert chunks[3] == "data: [DONE]\n\n"
+        chunks = [
+            chunk
+            async for chunk in provider.stream_generate(
+                prompt="Hi",
+                model="claude-haiku-3.5",
+            )
+        ]
+
+    # The provider yields decoded text deltas only, not OpenAI-style envelopes.
+    assert chunks == ["Hello ", "World!"]

@@ -1,0 +1,5 @@
+path,requests,concurrency,p50_ms,p95_ms,p99_ms,requests_per_second
+direct_provider_call,500,1,0.009,0.011,0.016,126444.6
+gateway_http,500,1,10.486,22.391,33.702,86.3
+overhead_delta,500,1,10.476,22.377,33.698,
+gateway_http_concurrent,200,8,60.715,75.552,174.722,114.7

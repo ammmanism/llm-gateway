@@ -1,0 +1,5 @@
+threshold,paraphrase_queries,correct_intent_hits,wrong_intent_hits,missed,hit_rate,unrelated_queries,unrelated_false_positives,hard_negative_queries,hard_negative_false_positives,false_positive_queries,false_positive_hits,false_positive_rate,hard_negative_false_positive_rate,wrong_intent_rate,precision,mean_correct_similarity
+0.80,24,9,0,15,0.375,12,0,12,1,24,1,0.0417,0.0833,0.0,1.0,0.8858
+0.85,24,7,0,17,0.2917,12,0,12,0,24,0,0.0,0.0,0.0,1.0,0.9043
+0.90,24,3,0,21,0.125,12,0,12,0,24,0,0.0,0.0,0.0,1.0,0.932
+0.95,24,0,0,24,0.0,12,0,12,0,24,0,0.0,0.0,0.0,1.0,0.0

@@ -1,6 +1,6 @@
-import re
-from typing import Tuple, Optional, List
 import logging
+import re
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +67,7 @@ class SentinelFirewall:
         for pii_type, pattern in cls.PII_PATTERNS.items():
             if re.search(pattern, prompt, re.IGNORECASE):
                 logger.warning(f"PII detected in prompt from tenant '{tenant_id}': {pii_type}")
-                return False, f"Security violation: Prompt contains potential {pii_type.replace('_', ' ')}"
+                return False, f"Security violation: PII detected ({pii_type})"
 
         # 3. Injection detection (Model safety)
         for pattern in cls.INJECTION_PATTERNS:
@@ -90,8 +90,8 @@ class SentinelFirewall:
         """
         # Remove control characters except newline and tab to prevent terminal-escape attacks
         prompt = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', prompt)
-        
+
         # Normalize whitespace (collapsing multiple spaces)
         prompt = re.sub(r'\s+', ' ', prompt).strip()
-        
+
         return prompt

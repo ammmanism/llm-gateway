@@ -1,4 +1,5 @@
-from llm_gateway.utils.tokenizer import count_tokens, count_message_tokens
+from llm_gateway.utils.tokenizer import count_message_tokens, count_tokens
+
 
 def test_count_tokens_openai():
     # Test valid OpenAI model
@@ -11,7 +12,7 @@ def test_count_tokens_fallback():
     # Test unknown model falls back to cl100k_base
     text = "Hello, world!"
     assert count_tokens("invalid-model-name", text) == 4
-    
+
     # Empty string should return 0
     assert count_tokens("gpt-4o", "") == 0
     assert count_tokens("gpt-4o", None) == 0

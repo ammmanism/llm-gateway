@@ -19,7 +19,7 @@ class GeminiProvider(BaseProvider):
     """
     def __init__(self):
         self.api_key = os.environ.get("GEMINI_API_KEY")
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="gemini")
         self.default_model = "gemini-1.5-flash"
 
     @retry(max_retries=2, backoff_factor=1.0)
@@ -69,6 +69,14 @@ class GeminiProvider(BaseProvider):
                 "provider": "google",
                 "model": model,
                 "output": output,
+                "usage": {
+                    "prompt_tokens": data.get("usageMetadata", {}).get(
+                        "promptTokenCount", 0
+                    ),
+                    "completion_tokens": data.get("usageMetadata", {}).get(
+                        "candidatesTokenCount", 0
+                    ),
+                },
                 "status": "success"
             }
         except Exception as e:

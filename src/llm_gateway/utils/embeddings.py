@@ -1,65 +1,101 @@
-import numpy as np
-from sentence_transformers import SentenceTransformer
 import asyncio
-from typing import List, Any
-from llm_gateway.utils.logger import get_logger
+import hashlib
+import logging
+import re
+from typing import List
 
-logger = get_logger(__name__)
+import numpy as np
+
+logger = logging.getLogger(__name__)
+
+
+class HashingEmbedder:
+    """Deterministic local embedder used when the optional ML extra is absent."""
+
+    dimension = 384
+    backend_name = "deterministic-token-hashing-v1"
+
+    def encode(self, texts, normalize_embeddings=True):
+        single = isinstance(texts, str)
+        items = [texts] if single else list(texts)
+        vectors = []
+        for text in items:
+            vector = np.zeros(self.dimension, dtype=np.float32)
+            tokens = re.findall(r"[a-z0-9]+", text.lower())
+            features = tokens + [
+                f"{left}_{right}" for left, right in zip(tokens, tokens[1:])
+            ]
+            for feature in features:
+                digest = hashlib.sha256(feature.encode()).digest()
+                bucket = int.from_bytes(digest[:4], "little") % self.dimension
+                sign = 1.0 if digest[4] & 1 else -1.0
+                vector[bucket] += sign
+            norm = np.linalg.norm(vector)
+            if norm:
+                vector /= norm
+            vectors.append(vector)
+        result = np.asarray(vectors, dtype=np.float32)
+        return result[0] if single else result
+
 
 class EmbeddingEngine:
-    """Local embedding engine using sentence-transformers (zero API cost)"""
-    
+    """Lazy local embedding engine with an explicit deterministic fallback."""
+
     _instance = None
-    model_name: str
-    model: Any
-    dimension: int
-    
+
     def __new__(cls):
         if cls._instance is None:
-            cls._instance = super(EmbeddingEngine, cls).__new__(cls)
-            cls._instance.model_name = "sentence-transformers/all-MiniLM-L6-v2"
-            cls._instance.model = None
-            cls._instance.dimension = 384
+            instance = super().__new__(cls)
+            instance.model_name = "sentence-transformers/all-MiniLM-L6-v2"
+            instance.model = None
+            instance.dimension = 384
+            instance.backend_name = "not-loaded"
+            cls._instance = instance
         return cls._instance
-    
+
     def load(self) -> None:
-        """Load the model synchronously. Should be called on app startup."""
-        if self.model is None:
-            logger.info(f"Loading embedding model: {self.model_name}")
-            # Loading model. By default uses GPU if available, else CPU.
+        if self.model is not None:
+            return
+        logger.info("Loading embedding model %s", self.model_name)
+        try:
+            from sentence_transformers import SentenceTransformer
+
             self.model = SentenceTransformer(self.model_name)
-            logger.info("Embedding model loaded successfully")
+            self.dimension = self.model.get_sentence_embedding_dimension()
+            self.backend_name = self.model_name
+        except Exception as exc:
+            logger.warning(
+                "Neural embedding model unavailable (%s); using deterministic "
+                "hashing embeddings. Install the 'ml' extra and pre-download the "
+                "model for neural semantic search.",
+                exc,
+            )
+            self.model = HashingEmbedder()
+            self.dimension = self.model.dimension
+            self.backend_name = self.model.backend_name
 
     def _normalize_text(self, text: str) -> str:
-        """Basic normalization to improve match consistency"""
         return text.strip().lower()
 
     async def embed(self, text: str) -> np.ndarray:
-        """
-        Embed a single text string asynchronously.
-        Returns a 1D numpy array of float32, L2-normalized.
-        """
         if self.model is None:
             self.load()
-            
-        normalized_text = self._normalize_text(text)
-        
-        # Run in a threadpool to not block the async event loop
-        vector = await asyncio.to_thread(self.model.encode, normalized_text, normalize_embeddings=True)
-        return vector
+        normalized = self._normalize_text(text)
+        return await asyncio.to_thread(
+            self.model.encode,
+            normalized,
+            normalize_embeddings=True,
+        )
 
     async def embed_batch(self, texts: List[str]) -> np.ndarray:
-        """
-        Embed a list of text strings asynchronously.
-        Returns a 2D numpy array of float32, L2-normalized.
-        """
         if self.model is None:
             self.load()
-            
-        normalized_texts = [self._normalize_text(t) for t in texts]
-        
-        vectors = await asyncio.to_thread(self.model.encode, normalized_texts, normalize_embeddings=True)
-        return vectors
+        normalized = [self._normalize_text(text) for text in texts]
+        return await asyncio.to_thread(
+            self.model.encode,
+            normalized,
+            normalize_embeddings=True,
+        )
 
-# Global instance
+
 embedding_engine = EmbeddingEngine()

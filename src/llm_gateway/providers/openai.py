@@ -19,7 +19,7 @@ class OpenAIProvider(BaseProvider):
     """
     def __init__(self):
         self.api_key = os.environ.get("OPENAI_API_KEY")
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="openai")
         self.default_model = "gpt-3.5-turbo"
 
     @retry(max_retries=3, backoff_factor=0.5)
@@ -76,6 +76,7 @@ class OpenAIProvider(BaseProvider):
                 "provider": "openai",
                 "model": model,
                 "output": output,
+                "usage": data.get("usage", {}),
                 "status": "success"
             }
         except Exception as e:

@@ -43,6 +43,8 @@ htmlcov/
 
 # Benchmark artifacts
 benchmarks/results/*.json
+data/evidence/*.sqlite3
+data/cost_ledger.sqlite3
 
 # Node
 node_modules/
