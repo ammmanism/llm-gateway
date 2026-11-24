@@ -1,11 +1,12 @@
-import os
 import asyncio
 import json
 import logging
-from typing import Dict, Any, AsyncIterator
+import os
+from typing import Any, AsyncIterator, Dict
+
 from llm_gateway.providers.abstract import BaseProvider
+from llm_gateway.reliability.circuit_breaker import CircuitBreaker, CircuitOpenError
 from llm_gateway.reliability.retry import retry
-from llm_gateway.reliability.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,11 @@ class GeminiProvider(BaseProvider):
         Generate a complete response using Google's Gemini API.
         """
         model = kwargs.get("model", self.default_model)
-        if not self.circuit_breaker.allow_request():
-            raise Exception("Circuit breaker is OPEN for Gemini provider")
+        try:
+            self.circuit_breaker.allow_request()
+        except CircuitOpenError as e:
+            e.provider = "google"
+            raise
 
         try:
             if not self.api_key:
@@ -77,8 +81,11 @@ class GeminiProvider(BaseProvider):
         Stream a response using Gemini's streamGenerateContent endpoint.
         """
         model = kwargs.get("model", self.default_model)
-        if not self.circuit_breaker.allow_request():
-            raise Exception("Circuit breaker is OPEN for Gemini provider")
+        try:
+            self.circuit_breaker.allow_request()
+        except CircuitOpenError as e:
+            e.provider = "google"
+            raise
 
         try:
             if not self.api_key:

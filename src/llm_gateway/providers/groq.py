@@ -1,10 +1,13 @@
-import httpx
 import json
 import logging
 import os
-from typing import Dict, Any, AsyncIterator
-from llm_gateway.providers.abstract import BaseProvider
+from typing import Any, AsyncIterator, Dict
+
+import httpx
 from tenacity import retry, stop_after_attempt, wait_exponential
+
+from llm_gateway.providers.abstract import BaseProvider
+from llm_gateway.reliability.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +26,19 @@ class GroqProvider(BaseProvider):
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
 
     @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
     async def generate(self, prompt: str, model: str = "llama3-70b-8192", **kwargs: Any) -> Dict[str, Any]:
         """
         Generate a complete response using Groq's API.
         """
+        try:
+            self.circuit_breaker.allow_request()
+        except CircuitOpenError as e:
+            e.provider = "groq"
+            raise
+
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
@@ -41,7 +51,8 @@ class GroqProvider(BaseProvider):
                 response = await client.post(self.base_url, headers=self.headers, json=payload)
                 response.raise_for_status()
                 data = response.json()
-                
+
+                self.circuit_breaker.record_success()
                 return {
                     "provider": "groq",
                     "model": model,
@@ -50,6 +61,7 @@ class GroqProvider(BaseProvider):
                     "status": "success"
                 }
             except Exception as e:
+                self.circuit_breaker.record_failure()
                 logger.error(f"Groq completion failure: {e}")
                 return {"status": "error", "error": str(e)}
 
@@ -57,6 +69,12 @@ class GroqProvider(BaseProvider):
         """
         Stream a response from Groq's high-speed inference engine.
         """
+        try:
+            self.circuit_breaker.allow_request()
+        except CircuitOpenError as e:
+            e.provider = "groq"
+            raise
+
         payload = {
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
@@ -77,3 +95,4 @@ class GroqProvider(BaseProvider):
                                 yield chunk
                         except Exception:
                             continue
+                self.circuit_breaker.record_success()

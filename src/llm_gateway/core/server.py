@@ -4,39 +4,54 @@ import logging
 import os
 import time
 from contextlib import asynccontextmanager
-from typing import Optional
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, StreamingResponse
+from opentelemetry import trace as otel_trace
 from pydantic import BaseModel
 
+from llm_gateway.auth.budget_enforcer import BudgetEnforcer
+from llm_gateway.auth.quota_manager import QuotaManager
 from llm_gateway.cache.cache_manager import CacheManager
-from llm_gateway.core.control_plane.fallback_policies import get_fallback_chain_from_policy
+from llm_gateway.core.control_plane.fallback_policies import (
+    get_fallback_chain_from_policy,
+    should_fallback,
+)
 from llm_gateway.core.control_plane.fallback_policies import router as fallback_router
 from llm_gateway.core.control_plane.router import init_admin_deps
 from llm_gateway.core.control_plane.router import router as admin_router
 from llm_gateway.core.core.batcher import NexusBatcher
 from llm_gateway.core.core.cost_tracker import NexusCostTracker
 from llm_gateway.core.core.heartbeat import HeartbeatMonitor
-from llm_gateway.routing.load_balancing.least_busy import LeastBusyBalancer
-from llm_gateway.auth.budget_enforcer import BudgetEnforcer
-from llm_gateway.auth.quota_manager import QuotaManager
 from llm_gateway.observability.logging_middleware import StructuredLoggingMiddleware
 from llm_gateway.observability.metrics.cost_metrics import record_cost
 from llm_gateway.observability.metrics.prometheus import (
     failure_counter,
-    latency_histogram,
     metrics_endpoint,
-    request_counter,
+    record_budget_rejection,
+    record_cache_hit,
+    record_cache_miss,
+    record_failure,
+    record_fallback,
+    record_latency,
+    record_rate_limit_rejection,
+    record_request,
+    record_tokens,
+    update_budget_remaining,
+    update_rate_limit_remaining,
+)
+from llm_gateway.observability.metrics.prometheus import (
+    record_cost as record_cost_metric,
 )
 from llm_gateway.observability.tracing.open_telemetry import init_tracing, trace_span
 from llm_gateway.providers.factory import ProviderFactory
+from llm_gateway.reliability.chaos_controller import ChaosMode, chaos
 from llm_gateway.routing.adaptive import AdaptiveRouter
 from llm_gateway.routing.cost_aware import CostAwareRouter
 from llm_gateway.routing.fallback import FallbackRouter
 from llm_gateway.routing.latency_aware import LatencyAwareRouter
-from llm_gateway.utils.template_manager import template_manager
-from typing import Optional, Dict, Any
+from llm_gateway.routing.load_balancing.least_busy import LeastBusyBalancer
 
 # Security
 from llm_gateway.security.auth import APIKeyAuthMiddleware
@@ -44,7 +59,7 @@ from llm_gateway.security.cors import configure_cors
 from llm_gateway.security.firewall import SentinelFirewall
 from llm_gateway.security.headers import SecurityHeadersMiddleware
 from llm_gateway.security.rate_limiter import RateLimiter
-from llm_gateway.reliability.chaos_controller import ChaosMode, chaos
+from llm_gateway.utils.template_manager import template_manager
 
 # Configure logging
 logging.basicConfig(
@@ -59,7 +74,7 @@ load_balancer = LeastBusyBalancer()
 cache_manager = CacheManager()
 quota_manager = QuotaManager()
 budget_enforcer = BudgetEnforcer()
-rate_limiter = RateLimiter(max_requests=100, window_seconds=60)
+rate_limiter = RateLimiter(rpm_limit=100, tpm_limit=50000, window_seconds=60)
 adaptive_router = AdaptiveRouter()
 request_batcher = NexusBatcher()
 cost_tracker = NexusCostTracker()
@@ -159,10 +174,12 @@ async def set_chaos_mode(mode: str, failure_rate: float = 0.1, latency_ms: int =
 @trace_span("generate_request")
 async def generate(request: GenerateRequest, req: Request):
     start_time = time.perf_counter()
-    request_counter.inc()
 
     if hasattr(req.state, "tenant_id"):
         request.tenant_id = req.state.tenant_id
+
+    # Get current span for attribute enrichment
+    current_span = otel_trace.get_current_span()
 
     # Templating resolution
     prompt_text = request.prompt
@@ -171,26 +188,59 @@ async def generate(request: GenerateRequest, req: Request):
             prompt_text = template_manager.render(request.template_id, request.variables or {})
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-            
+
     if not prompt_text:
         raise HTTPException(status_code=400, detail="Either 'prompt' or 'template_id' must be provided")
 
     # Validation & Sanitization
     is_valid, error_msg = SentinelFirewall.validate(prompt_text, request.tenant_id)
     if not is_valid:
-        failure_counter.inc()
+        record_failure(request.tenant_id, "validation")
+        if current_span:
+            current_span.set_attribute("error.type", "validation")
+            current_span.set_attribute("error.message", error_msg)
         raise HTTPException(status_code=400, detail=error_msg)
     prompt_sanitized = SentinelFirewall.sanitize(prompt_text)
 
-    # Rate limiting
-    allowed, _ = await rate_limiter.is_allowed(request.tenant_id)
-    if not allowed:
-        failure_counter.inc()
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
+    # Set common span attributes early
+    if current_span:
+        current_span.set_attribute("tenant_id", request.tenant_id)
+        current_span.set_attribute("prompt_length", len(prompt_sanitized))
+        current_span.set_attribute("use_cache", request.use_cache)
+
+    # Rate limiting - estimate tokens for TPM check
+    # Rough estimate: prompt tokens + max completion tokens (default 1024)
+    estimated_prompt_tokens = len(prompt_sanitized.split())
+    estimated_completion_tokens = 1024  # default max_tokens
+    estimated_total_tokens = estimated_prompt_tokens + estimated_completion_tokens
+
+    rate_limit_result = await rate_limiter.check_and_reserve(
+        request.tenant_id,
+        estimated_tokens=estimated_total_tokens,
+    )
+    if not rate_limit_result.allowed:
+        record_failure(request.tenant_id, "rate_limit")
+        record_rate_limit_rejection(request.tenant_id, rate_limit_result.limit_exceeded)
+        update_rate_limit_remaining(request.tenant_id, "rpm", rate_limit_result.rpm_remaining)
+        update_rate_limit_remaining(request.tenant_id, "tpm", rate_limit_result.tpm_remaining)
+        if current_span:
+            current_span.set_attribute("error.type", "rate_limit")
+            current_span.set_attribute("rate_limit.exceeded", rate_limit_result.limit_exceeded)
+        retry_after = max(rate_limit_result.retry_after_rpm, rate_limit_result.retry_after_tpm)
+        limit_type = rate_limit_result.limit_exceeded.upper()
+        raise HTTPException(
+            status_code=429,
+            detail=f"{limit_type} rate limit exceeded",
+            headers={
+                "X-RateLimit-RPM-Remaining": str(rate_limit_result.rpm_remaining),
+                "X-RateLimit-TPM-Remaining": str(rate_limit_result.tpm_remaining),
+                "Retry-After": str(int(retry_after) + 1),
+            },
+        )
 
     # Multi-tenant quota
     if not await quota_manager.check_quota(request.tenant_id, tokens=len(prompt_sanitized.split())):
-        failure_counter.inc()
+        record_failure(request.tenant_id, "quota")
         raise HTTPException(status_code=429, detail="Quota exceeded")
 
     # Adaptive Routing Toggle
@@ -203,13 +253,15 @@ async def generate(request: GenerateRequest, req: Request):
         models = await cost_router.select_models({"prompt": prompt_sanitized})
 
     if not models:
-        failure_counter.inc()
+        record_failure(request.tenant_id, "provider")
         raise HTTPException(status_code=503, detail="No models available for request")
 
     estimated_cost = cost_tracker.estimate_text_cost(models[0], prompt_sanitized)
     if not await budget_enforcer.check_budget(request.tenant_id, estimated_cost):
-        failure_counter.inc()
+        record_failure(request.tenant_id, "budget")
+        record_budget_rejection(request.tenant_id)
         remaining = await budget_enforcer.get_remaining_budget(request.tenant_id)
+        update_budget_remaining(request.tenant_id, remaining)
         raise HTTPException(
             status_code=402,
             detail=f"Budget exceeded; remaining budget is ${remaining:.4f}",
@@ -228,7 +280,14 @@ async def generate(request: GenerateRequest, req: Request):
         )
         if cached:
             latency = (time.perf_counter() - start_time) * 1000
-            latency_histogram.observe(latency)
+            record_latency(request.tenant_id, cached["model"], cached["provider"], latency)
+            record_cache_hit(request.tenant_id, "exact")
+            record_request(request.tenant_id, cached["model"], cached["provider"], "cache_hit")
+            if current_span:
+                current_span.set_attribute("cache_hit", True)
+                current_span.set_attribute("model", cached["model"])
+                current_span.set_attribute("provider", cached["provider"])
+                current_span.set_attribute("latency_ms", latency)
             return GenerateResponse(
                 model=cached["model"],
                 output=cached["output"],
@@ -265,9 +324,43 @@ async def generate(request: GenerateRequest, req: Request):
             if result["status"] == "success":
                 latency = (time.perf_counter() - start_time) * 1000
 
-                # Dynamic cost calculation
-                tokens = len(prompt_sanitized.split()) + len(result["output"].split())
-                cost = cost_tracker.calculate_cost(m_name, tokens)
+                # Dynamic cost calculation - use actual tokens from provider if available
+                prompt_tokens = len(prompt_sanitized.split())
+                completion_tokens = len(result["output"].split())
+                actual_tokens = prompt_tokens + completion_tokens
+
+                # Reconcile TPM reservation with actual usage
+                await rate_limiter.reconcile_tokens(
+                    request.tenant_id,
+                    estimated_tokens=estimated_total_tokens,
+                    actual_tokens=actual_tokens,
+                )
+
+                cost = cost_tracker.calculate_cost(m_name, actual_tokens)
+
+                # Record metrics
+                record_latency(request.tenant_id, result["model"], result["provider"], latency)
+                record_tokens(request.tenant_id, result["model"], prompt_tokens, completion_tokens)
+                record_cost_metric(request.tenant_id, result["model"], result["provider"], cost)
+                record_request(request.tenant_id, result["model"], result["provider"], "success")
+                record_cache_miss(request.tenant_id)
+
+                # Record fallback if not first attempt
+                attempt_idx = fallback_models.index(m_name)
+                if attempt_idx > 0:
+                    record_fallback(request.tenant_id, fallback_models[0], m_name, "error")
+                    if current_span:
+                        current_span.set_attribute("fallback_attempt", attempt_idx)
+
+                # Set span attributes for observability
+                if current_span:
+                    current_span.set_attribute("cache_hit", False)
+                    current_span.set_attribute("model", result["model"])
+                    current_span.set_attribute("provider", result["provider"])
+                    current_span.set_attribute("prompt_tokens", prompt_tokens)
+                    current_span.set_attribute("completion_tokens", completion_tokens)
+                    current_span.set_attribute("cost_usd", cost)
+                    current_span.set_attribute("latency_ms", latency)
 
                 # Feedback to Adaptive Router
                 await adaptive_router.record_result(m_name, True, latency, cost)
@@ -281,7 +374,7 @@ async def generate(request: GenerateRequest, req: Request):
                     prompt=prompt_sanitized,
                     tenant_id=request.tenant_id,
                 )
-                await quota_manager.consume(request.tenant_id, tokens=len(result["output"].split()))
+                await quota_manager.consume(request.tenant_id, tokens=completion_tokens)
 
                 return GenerateResponse(
                     model=result["model"],
@@ -292,11 +385,48 @@ async def generate(request: GenerateRequest, req: Request):
                 )
         except Exception as e:
             logger.warning(f"Model {m_name} failed: {e}")
+
+            # Get circuit breaker state for this provider
+            provider = ProviderFactory.get_provider_for_model(m_name)
+            cb_state = ""
+            if provider and hasattr(provider, "circuit_breaker"):
+                cb_state = provider.circuit_breaker.get_state().value
+
+            # Determine fallback trigger
+            trigger = "error"
+            if cb_state == "OPEN":
+                trigger = "circuit_open"
+            elif hasattr(e, "response") and e.response is not None:
+                status = getattr(e.response, "status_code", 0)
+                if status == 429:
+                    trigger = "rate_limit"
+                elif status in (500, 502, 503, 504):
+                    trigger = "error_5xx"
+
+            # Check if we should fallback to next model
+            if not should_fallback(e, circuit_breaker_state=cb_state):
+                logger.info(f"Error does not trigger fallback, stopping chain: {e}")
+                last_error = e
+                break
+
+            # Record fallback attempt
+            attempt_idx = fallback_models.index(m_name)
+            if attempt_idx + 1 < len(fallback_models):
+                next_model = fallback_models[attempt_idx + 1]
+                record_fallback(request.tenant_id, m_name, next_model, trigger)
+
+            # Release token reservation for failed attempt
+            await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
             await adaptive_router.record_result(m_name, False, 5000, 0.0)
             last_error = e
             continue
 
-    failure_counter.inc()
+    record_failure(request.tenant_id, "all_failed")
+    record_request(request.tenant_id, fallback_models[0], "unknown", "error")
+    if current_span:
+        current_span.set_attribute("error.type", "all_providers_failed")
+        current_span.set_attribute("error.message", str(last_error))
+        current_span.set_attribute("fallback_attempts", len(fallback_models))
     raise HTTPException(status_code=503, detail=f"All providers failed: {last_error}")
 
 
@@ -304,7 +434,9 @@ async def generate(request: GenerateRequest, req: Request):
 async def generate_stream(request: GenerateRequest, req: Request):
     """Goat-tier streaming with backpressure and adaptive telemetry."""
     start_time = time.perf_counter()
-    request_counter.inc()
+
+    if hasattr(req.state, "tenant_id"):
+        request.tenant_id = req.state.tenant_id
 
     # Templating resolution
     prompt_text = request.prompt
@@ -313,30 +445,60 @@ async def generate_stream(request: GenerateRequest, req: Request):
             prompt_text = template_manager.render(request.template_id, request.variables or {})
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
-            
+
     if not prompt_text:
         raise HTTPException(status_code=400, detail="Either 'prompt' or 'template_id' must be provided")
 
-    # Reuse validation logic
+    # Validation & Sanitization
     is_valid, error_msg = SentinelFirewall.validate(prompt_text, request.tenant_id)
     if not is_valid:
+        record_failure(request.tenant_id, "validation")
         raise HTTPException(status_code=400, detail=error_msg)
+    prompt_sanitized = SentinelFirewall.sanitize(prompt_text)
+
+    # Rate limiting for streaming
+    estimated_prompt_tokens = len(prompt_sanitized.split())
+    estimated_completion_tokens = 1024
+    estimated_total_tokens = estimated_prompt_tokens + estimated_completion_tokens
+
+    rate_limit_result = await rate_limiter.check_and_reserve(
+        request.tenant_id,
+        estimated_tokens=estimated_total_tokens,
+    )
+    if not rate_limit_result.allowed:
+        failure_counter.inc()
+        retry_after = max(rate_limit_result.retry_after_rpm, rate_limit_result.retry_after_tpm)
+        limit_type = rate_limit_result.limit_exceeded.upper()
+        raise HTTPException(
+            status_code=429,
+            detail=f"{limit_type} rate limit exceeded",
+            headers={
+                "X-RateLimit-RPM-Remaining": str(rate_limit_result.rpm_remaining),
+                "X-RateLimit-TPM-Remaining": str(rate_limit_result.tpm_remaining),
+                "Retry-After": str(int(retry_after) + 1),
+            },
+        )
 
     # Model selection
     if request.model:
         models = [request.model]
     else:
-        models = await adaptive_router.select_models({"prompt": prompt_text})
+        models = await adaptive_router.select_models({"prompt": prompt_sanitized})
 
     if not models:
-        failure_counter.inc()
+        record_failure(request.tenant_id, "provider")
+        # Release reservation since we're not making provider call
+        await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
         raise HTTPException(status_code=503, detail="No models available for stream")
 
     m_name = models[0]
-    estimated_cost = cost_tracker.estimate_text_cost(m_name, prompt_text)
+    estimated_cost = cost_tracker.estimate_text_cost(m_name, prompt_sanitized)
     if not await budget_enforcer.check_budget(request.tenant_id, estimated_cost):
-        failure_counter.inc()
+        record_failure(request.tenant_id, "budget")
+        record_budget_rejection(request.tenant_id)
+        await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
         remaining = await budget_enforcer.get_remaining_budget(request.tenant_id)
+        update_budget_remaining(request.tenant_id, remaining)
         raise HTTPException(
             status_code=402,
             detail=f"Budget exceeded; remaining budget is ${remaining:.4f}",
@@ -344,19 +506,51 @@ async def generate_stream(request: GenerateRequest, req: Request):
 
     provider = ProviderFactory.get_provider_for_model(m_name)
     if not provider:
+        await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
         raise HTTPException(status_code=503, detail=f"No provider for {m_name}")
 
     async def stream_wrapper():
         full_output = []
+        stream_span = otel_trace.get_current_span()
+        if stream_span:
+            stream_span.set_attribute("tenant_id", request.tenant_id)
+            stream_span.set_attribute("model", m_name)
+            stream_span.set_attribute("provider", provider.__class__.__name__)
+            stream_span.set_attribute("streaming", True)
+
         try:
-            async for chunk in provider.stream_generate(prompt=prompt_text, model=m_name):
+            async for chunk in provider.stream_generate(prompt=prompt_sanitized, model=m_name):
                 full_output.append(chunk)
                 yield f"data: {json.dumps({'chunk': chunk, 'model': m_name})}\n\n"
 
             # Post-stream telemetry
             latency = (time.perf_counter() - start_time) * 1000
-            tokens = len(prompt_text.split()) + len(full_output)
-            cost = cost_tracker.calculate_cost(m_name, tokens)
+            prompt_tokens = len(prompt_sanitized.split())
+            completion_tokens = len(full_output)
+            actual_tokens = prompt_tokens + completion_tokens
+
+            # Reconcile TPM reservation
+            await rate_limiter.reconcile_tokens(
+                request.tenant_id,
+                estimated_tokens=estimated_total_tokens,
+                actual_tokens=actual_tokens,
+            )
+
+            cost = cost_tracker.calculate_cost(m_name, actual_tokens)
+
+            # Record metrics
+            record_latency(request.tenant_id, m_name, provider.__class__.__name__, latency)
+            record_tokens(request.tenant_id, m_name, prompt_tokens, completion_tokens)
+            record_cost_metric(request.tenant_id, m_name, provider.__class__.__name__, cost)
+            record_request(request.tenant_id, m_name, provider.__class__.__name__, "success")
+            record_cache_miss(request.tenant_id)
+
+            if stream_span:
+                stream_span.set_attribute("cache_hit", False)
+                stream_span.set_attribute("prompt_tokens", prompt_tokens)
+                stream_span.set_attribute("completion_tokens", completion_tokens)
+                stream_span.set_attribute("cost_usd", cost)
+                stream_span.set_attribute("latency_ms", latency)
 
             await adaptive_router.record_result(m_name, True, latency, cost)
             record_cost(request.tenant_id, m_name, provider.__class__.__name__, cost)
@@ -365,6 +559,13 @@ async def generate_stream(request: GenerateRequest, req: Request):
             yield "data: [DONE]\n\n"
         except Exception as e:
             logger.error(f"Stream failed for {m_name}: {e}")
+            record_failure(request.tenant_id, "stream_failed")
+            record_request(request.tenant_id, m_name, provider.__class__.__name__, "error")
+            if stream_span:
+                stream_span.set_attribute("error.type", "stream_failed")
+                stream_span.set_attribute("error.message", str(e))
+            # Release reservation on failure
+            await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
             await adaptive_router.record_result(m_name, False, 5000, 0.0)
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 

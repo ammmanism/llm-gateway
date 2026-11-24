@@ -1,28 +1,28 @@
+import functools
+import logging
+import os
+
 from opentelemetry import trace as otel_trace
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
+from opentelemetry.instrumentation.redis import RedisInstrumentor
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace import Status, StatusCode
-import os
-import functools
-import time
-import logging
 
 logger = logging.getLogger(__name__)
 
 def init_tracing(app=None, service_name: str = "llm-gateway"):
     """Initialize OpenTelemetry with OTLP exporter."""
     otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
-    
+
     resource = Resource(attributes={
         SERVICE_NAME: service_name,
         "deployment.environment": os.environ.get("ENVIRONMENT", "development")
     })
-    
+
     provider = TracerProvider(resource=resource)
     try:
         processor = BatchSpanProcessor(OTLPSpanExporter(endpoint=otlp_endpoint))
@@ -30,14 +30,14 @@ def init_tracing(app=None, service_name: str = "llm-gateway"):
         otel_trace.set_tracer_provider(provider)
     except Exception as e:
         logger.warning(f"Failed to initialize OTLP exporter: {e}")
-    
+
     # Instrument libraries
     RedisInstrumentor().instrument()
     HTTPXClientInstrumentor().instrument()
-    
+
     if app:
         FastAPIInstrumentor.instrument_app(app)
-    
+
     logger.info(f"OpenTelemetry initialized with OTLP endpoint: {otlp_endpoint}")
     return provider
 
