@@ -4,7 +4,10 @@ strategies:
     ttl: 3600
     storage: memory
   semantic:
-    similarity_threshold: 0.95
+    # 0.85 chosen from data/evidence/semantic_threshold_sweep.csv: it kept a
+    # 29.2% paraphrase hit rate with zero hard-negative false positives, while
+    # 0.95 matched nothing and 0.80 let an adjacent-intent query through.
+    similarity_threshold: 0.85
     storage: redis
 
 # Nexus-Standard: Verified Type Safety and Professional Documentation Pattern

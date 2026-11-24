@@ -38,6 +38,7 @@ def simulate_outage(breaker, provider, failure_count=5, events=None):
         try:
             breaker.allow_request()
         except CircuitOpenError as e:
+            e.provider = provider.name
             dropped += 1
             if events is not None:
                 events.append({
@@ -85,6 +86,7 @@ def measure_recovery(breaker, provider, events=None):
         try:
             breaker.allow_request()
         except CircuitOpenError as e:
+            e.provider = provider.name
             if events is not None:
                 events.append({
                     "timestamp": timestamp,
@@ -130,7 +132,8 @@ def run_scenario(name, failure_threshold, recovery_timeout, fail_after, max_prob
     breaker = CircuitBreaker(
         failure_threshold=failure_threshold,
         recovery_timeout=recovery_timeout,
-        max_half_open_probes=max_probes
+        max_half_open_probes=max_probes,
+        name=name,
     )
 
     # Record initial state
@@ -191,7 +194,7 @@ if __name__ == "__main__":
         print(f"  Final state: {result['final_circuit_state']}")
 
     # Write JSON summary
-    out_file = Path("benchmarks/results/fallover_recovery.json")
+    out_file = Path("benchmarks/results/failover_recovery.json")
     out_file.parent.mkdir(parents=True, exist_ok=True)
     with open(out_file, "w") as f:
         json.dump(all_results, f, indent=2)
@@ -204,48 +207,70 @@ if __name__ == "__main__":
         writer = csv.writer(f)
         writer.writerow([
             "scenario",
+            "failure_threshold",
+            "recovery_timeout_s",
             "time_to_detect_ms",
             "time_to_switch_ms",
-            "requests_failed_during_switch",
-            "successful_failover_rate"
+            "requests_failed_before_open",
+            "requests_rejected_while_open",
+            "recovery_probe_attempts",
+            "recovery_probe_success_rate",
+            "recovered",
         ])
 
         for result in all_results:
-            # Calculate metrics from events
             events = result["events"]
             start_time = None
             open_time = None
-            half_open_time = None
             closed_time = None
-            failed_during_switch = 0
+            failed_before_open = 0
+            rejected_while_open = 0
+            probe_attempts = 0
+            probe_successes = 0
 
             for e in events:
                 if e["event"] == "scenario_start":
                     start_time = e["timestamp"]
-                elif e["event"] == "request_failed" and e["circuit_state"] == "OPEN" and open_time is None:
-                    open_time = e["timestamp"]
+                elif e["event"] == "request_failed":
+                    if e["circuit_state"] == "OPEN" and open_time is None:
+                        open_time = e["timestamp"]
+                    else:
+                        failed_before_open += 1
+                elif e["event"] == "request_rejected":
+                    rejected_while_open += 1
                 elif e["event"] == "recovery_poll_rejected":
-                    failed_during_switch += 1
-                elif e["event"] == "recovery_success" and closed_time is None:
-                    closed_time = e["timestamp"]
+                    probe_attempts += 1
+                elif e["event"] == "recovery_probe_failed":
+                    probe_attempts += 1
+                elif e["event"] == "recovery_success":
+                    probe_attempts += 1
+                    probe_successes += 1
+                    if closed_time is None:
+                        closed_time = e["timestamp"]
 
-            time_to_detect = 0
-            time_to_switch = 0
+            time_to_detect = 0.0
+            time_to_switch = 0.0
             if start_time and open_time:
                 time_to_detect = (open_time - start_time) * 1000
             if open_time and closed_time:
                 time_to_switch = (closed_time - open_time) * 1000
 
-            total_requests = sum(1 for e in events if e["event"] in ("request_success", "request_failed", "request_rejected"))
-            successful_requests = sum(1 for e in events if e["event"] == "request_success")
-            failover_rate = successful_requests / total_requests if total_requests > 0 else 0
+            probe_rate = (
+                probe_successes / probe_attempts if probe_attempts else 0.0
+            )
+            recovered = 1 if closed_time is not None else 0
 
             writer.writerow([
                 result["scenario"],
+                events[0].get("failure_threshold", ""),
+                events[0].get("recovery_timeout", ""),
                 round(time_to_detect, 1),
                 round(time_to_switch, 1),
-                failed_during_switch,
-                round(failover_rate, 4)
+                failed_before_open,
+                rejected_while_open,
+                probe_attempts,
+                round(probe_rate, 4),
+                recovered,
             ])
 
     # Write detailed event timeline for chart generation

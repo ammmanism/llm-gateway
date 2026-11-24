@@ -3,17 +3,23 @@ import json
 import logging
 import os
 import time
+import uuid
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace as otel_trace
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
+from llm_gateway.auth.admin.router import router as tenant_admin_router
 from llm_gateway.auth.budget_enforcer import BudgetEnforcer
 from llm_gateway.auth.quota_manager import QuotaManager
+from llm_gateway.billing.cost_ledger import CostLedger, new_entry
 from llm_gateway.cache.cache_manager import CacheManager
+from llm_gateway.cache.semantic import semantic_cache
+from llm_gateway.cache.two_tier import TwoTierCache
 from llm_gateway.core.control_plane.fallback_policies import (
     get_fallback_chain_from_policy,
     should_fallback,
@@ -60,6 +66,7 @@ from llm_gateway.security.firewall import SentinelFirewall
 from llm_gateway.security.headers import SecurityHeadersMiddleware
 from llm_gateway.security.rate_limiter import RateLimiter
 from llm_gateway.utils.template_manager import template_manager
+from llm_gateway.utils.usage import extract_token_usage
 
 # Configure logging
 logging.basicConfig(
@@ -72,6 +79,8 @@ logger = logging.getLogger(__name__)
 health_checker = HeartbeatMonitor(check_interval=30)
 load_balancer = LeastBusyBalancer()
 cache_manager = CacheManager()
+two_tier_cache = TwoTierCache.from_config()
+cost_ledger = CostLedger(os.environ.get("COST_LEDGER_PATH", "data/cost_ledger.sqlite3"))
 quota_manager = QuotaManager()
 budget_enforcer = BudgetEnforcer()
 rate_limiter = RateLimiter(rpm_limit=100, tpm_limit=50000, window_seconds=60)
@@ -90,10 +99,18 @@ async def lifespan(app: FastAPI):
     # Initialize OpenTelemetry
     init_tracing(app, service_name="llm-gateway")
     ProviderFactory.get_all_providers()
+    try:
+        await semantic_cache.initialize()
+    except Exception as exc:
+        logger.warning("Legacy semantic cache unavailable: %s", exc)
     await health_checker.start()
     logger.info("Gateway ready")
     yield
     await health_checker.stop()
+    try:
+        await cost_ledger.close()
+    except Exception as exc:
+        logger.warning("Cost ledger shutdown failed: %s", exc)
     logger.info("Gateway shutdown")
 
 app = FastAPI(title="LLM Gateway", version="6.0.0", lifespan=lifespan)
@@ -109,6 +126,7 @@ app.add_middleware(StructuredLoggingMiddleware)
 
 # Include routers
 app.include_router(admin_router)
+app.include_router(tenant_admin_router)
 app.include_router(fallback_router)
 
 # Routers
@@ -122,10 +140,13 @@ class GenerateRequest(BaseModel):
     template_id: Optional[str] = None
     variables: Optional[Dict[str, Any]] = None
     tenant_id: Optional[str] = "default"
-    use_cache: Optional[bool] = True
-    prefer_latency: Optional[bool] = False
+    use_cache: bool = True
+    live_data: bool = False
+    prefer_latency: bool = False
     model: Optional[str] = None
-    stream: Optional[bool] = False
+    stream: bool = False
+    max_tokens: int = Field(default=1024, ge=1, le=128000)
+    temperature: float = Field(default=0.7, ge=0.0, le=2.0)
 
 
 class GenerateResponse(BaseModel):
@@ -134,12 +155,31 @@ class GenerateResponse(BaseModel):
     provider: str
     latency_ms: float
     mock: bool = False
+    cache_hit: bool = False
+    cache_tier: Optional[str] = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cost_usd: float = 0.0
 
 
-def build_cache_key(tenant_id: str, prompt: str) -> str:
-    """Build a stable cache key without storing prompt text."""
-    digest = hashlib.sha256(prompt.encode("utf-8")).hexdigest()
-    return f"cache:{tenant_id}:{digest}"
+def build_cache_key(
+    tenant_id: str,
+    prompt: str,
+    model: str = "default",
+    params: Optional[Dict[str, Any]] = None,
+) -> str:
+    """Build a stable, model/parameter-aware key without storing prompt text."""
+    payload = json.dumps(
+        {
+            "tenant": tenant_id,
+            "model": model,
+            "params": params or {},
+            "prompt": prompt,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return f"cache:{hashlib.sha256(payload.encode()).hexdigest()}"
 
 
 @app.get("/health")
@@ -154,6 +194,43 @@ async def health_check():
 @app.get("/metrics")
 async def get_metrics():
     return metrics_endpoint()
+
+
+@app.get("/v1/costs")
+async def get_costs(
+    req: Request,
+    date: Optional[str] = None,
+    model: Optional[str] = None,
+):
+    """Return tenant-scoped cost attribution for one UTC day."""
+    tenant_id = getattr(req.state, "tenant_id", "default")
+    day = date or datetime.now(timezone.utc).date().isoformat()
+    try:
+        datetime.strptime(day, "%Y-%m-%d")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="date must use YYYY-MM-DD") from exc
+    return await cost_ledger.summarize(tenant_id, day, model)
+
+
+@app.get("/v1/cache/stats")
+async def cache_stats(req: Request):
+    """Return cache hit/miss analytics for the authenticated tenant."""
+    from llm_gateway.cache.analytics import get_cache_analytics
+
+    tenant_id = getattr(req.state, "tenant_id", "default")
+    pg_pool = getattr(req.app.state, "pg_pool", None)
+    return await get_cache_analytics(pg_pool, tenant_id)
+
+
+@app.post("/v1/cache/warm")
+async def warm_cache(req: Request, file: UploadFile = File(...)):
+    """Warm the semantic cache from an uploaded JSONL file."""
+    from llm_gateway.cache.warmer import warm_cache_from_jsonl
+
+    tenant_id = getattr(req.state, "tenant_id", "default")
+    content = (await file.read()).decode("utf-8")
+    count = await warm_cache_from_jsonl(content, tenant_id)
+    return {"status": "success", "entries_warmed": count}
 
 
 @app.post("/admin/chaos/{mode}")
@@ -180,6 +257,7 @@ async def generate(request: GenerateRequest, req: Request):
 
     # Get current span for attribute enrichment
     current_span = otel_trace.get_current_span()
+    request_id = getattr(req.state, "request_id", None) or str(uuid.uuid4())
 
     # Templating resolution
     prompt_text = request.prompt
@@ -270,30 +348,71 @@ async def generate(request: GenerateRequest, req: Request):
     # Get fallback chain from dynamic policy
     fallback_models = get_fallback_chain_from_policy(request.tenant_id, models[0])
 
-    # Cache check
-    cache_key = build_cache_key(request.tenant_id, prompt_sanitized)
-    if request.use_cache:
-        cached = await cache_manager.get(
-            cache_key,
-            prompt=prompt_sanitized,
+    # Cache check (exact tier first, then semantic tier)
+    cache_model = request.model or models[0]
+    cache_params = {
+        "temperature": request.temperature,
+        "max_tokens": request.max_tokens,
+    }
+    cache_enabled = request.use_cache and not request.live_data
+    if cache_enabled:
+        cached = await two_tier_cache.get(
+            prompt_sanitized,
             tenant_id=request.tenant_id,
+            model=cache_model,
+            params=cache_params,
         )
         if cached:
             latency = (time.perf_counter() - start_time) * 1000
-            record_latency(request.tenant_id, cached["model"], cached["provider"], latency)
-            record_cache_hit(request.tenant_id, "exact")
-            record_request(request.tenant_id, cached["model"], cached["provider"], "cache_hit")
+            cached_value = cached.value
+            record_latency(
+                request.tenant_id,
+                cached_value["model"],
+                cached_value["provider"],
+                latency,
+            )
+            record_cache_hit(request.tenant_id, cached.tier)
+            record_request(
+                request.tenant_id,
+                cached_value["model"],
+                cached_value["provider"],
+                "cache_hit",
+            )
             if current_span:
                 current_span.set_attribute("cache_hit", True)
-                current_span.set_attribute("model", cached["model"])
-                current_span.set_attribute("provider", cached["provider"])
+                current_span.set_attribute("cache_tier", cached.tier)
+                current_span.set_attribute("cache_similarity", cached.similarity)
+                current_span.set_attribute("model", cached_value["model"])
+                current_span.set_attribute("provider", cached_value["provider"])
                 current_span.set_attribute("latency_ms", latency)
+                current_span.set_attribute("cost_usd", 0.0)
+
+            await cost_ledger.record(
+                new_entry(
+                    request_id=request_id,
+                    attempt=0,
+                    tenant_id=request.tenant_id,
+                    provider=cached_value["provider"],
+                    model=cached_value["model"],
+                    prompt_tokens=0,
+                    completion_tokens=0,
+                    cost_usd=0.0,
+                    cache_hit=True,
+                    usage_source="cache",
+                )
+            )
+
             return GenerateResponse(
-                model=cached["model"],
-                output=cached["output"],
-                provider=cached["provider"],
+                model=cached_value["model"],
+                output=cached_value["output"],
+                provider=cached_value["provider"],
                 latency_ms=latency,
-                mock=cached.get("mock", False),
+                mock=cached_value.get("mock", False),
+                cache_hit=True,
+                cache_tier=cached.tier,
+                prompt_tokens=0,
+                completion_tokens=0,
+                cost_usd=0.0,
             )
 
     # Inner generation with batching support
@@ -324,9 +443,12 @@ async def generate(request: GenerateRequest, req: Request):
             if result["status"] == "success":
                 latency = (time.perf_counter() - start_time) * 1000
 
-                # Dynamic cost calculation - use actual tokens from provider if available
-                prompt_tokens = len(prompt_sanitized.split())
-                completion_tokens = len(result["output"].split())
+                # Normalize provider-reported usage, with explicit estimation fallback
+                prompt_tokens, completion_tokens, usage_source = extract_token_usage(
+                    result,
+                    prompt_sanitized,
+                    result["output"],
+                )
                 actual_tokens = prompt_tokens + completion_tokens
 
                 # Reconcile TPM reservation with actual usage
@@ -367,13 +489,31 @@ async def generate(request: GenerateRequest, req: Request):
                 record_cost(request.tenant_id, m_name, result["provider"], cost)
                 await budget_enforcer.add_cost(request.tenant_id, cost)
 
-                # Cache and Quota
-                await cache_manager.set(
-                    cache_key,
-                    result,
-                    prompt=prompt_sanitized,
-                    tenant_id=request.tenant_id,
+                # Persist cost attribution (one row per attempt, idempotent)
+                await cost_ledger.record(
+                    new_entry(
+                        request_id=request_id,
+                        attempt=fallback_models.index(m_name),
+                        tenant_id=request.tenant_id,
+                        provider=result["provider"],
+                        model=result["model"],
+                        prompt_tokens=prompt_tokens,
+                        completion_tokens=completion_tokens,
+                        cost_usd=cost,
+                        cache_hit=False,
+                        usage_source=usage_source,
+                    )
                 )
+
+                # Cache and Quota
+                if cache_enabled:
+                    await two_tier_cache.set(
+                        prompt_sanitized,
+                        result,
+                        tenant_id=request.tenant_id,
+                        model=cache_model,
+                        params=cache_params,
+                    )
                 await quota_manager.consume(request.tenant_id, tokens=completion_tokens)
 
                 return GenerateResponse(
@@ -382,6 +522,10 @@ async def generate(request: GenerateRequest, req: Request):
                     provider=result["provider"],
                     latency_ms=latency,
                     mock=result.get("mock", False),
+                    cache_hit=False,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cost_usd=cost,
                 )
         except Exception as e:
             logger.warning(f"Model {m_name} failed: {e}")

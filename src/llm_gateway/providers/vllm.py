@@ -20,7 +20,7 @@ class VLLMProvider(BaseProvider):
     def __init__(self, base_url: str = "http://localhost:8000/v1", timeout: int = 60):
         self.base_url = base_url
         self.timeout = timeout
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="vllm")
 
     async def generate(self, prompt: str, **kwargs: Any) -> Dict[str, Any]:
         """

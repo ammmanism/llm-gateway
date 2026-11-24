@@ -20,7 +20,7 @@ class OllamaProvider(BaseProvider):
         self.model = model
         self.base_url = base_url
         self.timeout = timeout
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="ollama")
 
     async def generate(self, prompt: str, **kwargs: Any) -> Dict[str, Any]:
         try:

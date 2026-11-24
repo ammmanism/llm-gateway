@@ -38,7 +38,9 @@ class CircuitBreaker:
         recovery_timeout: float = 30.0,
         max_half_open_probes: int = 3,
         clock: Optional[Callable[[], float]] = None,
+        name: str = "unknown",
     ):
+        self.name = name
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.max_half_open_probes = max_half_open_probes
@@ -70,13 +72,13 @@ class CircuitBreaker:
                     self._half_open_probes = 1  # First probe counts
                     return True
                 retry_after = self.recovery_timeout - (self._clock() - self.last_failure_time)
-                raise CircuitOpenError("unknown", retry_after)
+                raise CircuitOpenError(self.name, retry_after)
 
             else:  # HALF_OPEN
                 if self._half_open_probes < self.max_half_open_probes:
                     self._half_open_probes += 1
                     return True
-                raise CircuitOpenError("unknown", 0.1)
+                raise CircuitOpenError(self.name, 0.1)
 
     def record_success(self) -> None:
         """

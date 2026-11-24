@@ -19,7 +19,7 @@ class TogetherProvider(BaseProvider):
     """
     def __init__(self):
         self.api_key = os.environ.get("TOGETHER_API_KEY")
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="together")
         self.default_model = "meta-llama/Llama-3-8b-chat-hf"
 
     @retry(max_retries=2, backoff_factor=1.0)
@@ -76,6 +76,7 @@ class TogetherProvider(BaseProvider):
                 "provider": "together",
                 "model": model,
                 "output": output,
+                "usage": data.get("usage", {}),
                 "status": "success"
             }
         except Exception as e:

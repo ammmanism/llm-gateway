@@ -1,6 +1,6 @@
-scenario,time_to_detect_ms,time_to_switch_ms,requests_failed_during_switch,successful_failover_rate
-fast_recovery,100.8,552.3,5,0.0
-standard_recovery,101.0,2060.5,20,0.0
-slow_recovery,100.7,5078.6,50,0.0
-high_threshold,202.4,2061.5,20,0.0
-limited_probes,101.0,1055.0,10,0.0
+scenario,failure_threshold,recovery_timeout_s,time_to_detect_ms,time_to_switch_ms,requests_failed_before_open,requests_rejected_while_open,recovery_probe_attempts,recovery_probe_success_rate,recovered
+fast_recovery,3,0.5,102.2,555.7,2,2,6,0.1667,1
+standard_recovery,3,2.0,101.3,2049.2,2,2,20,0.05,1
+slow_recovery,3,5.0,101.4,5002.0,2,2,50,0.02,1
+high_threshold,5,2.0,204.9,2062.4,4,2,21,0.0476,1
+limited_probes,3,1.0,102.3,1058.9,2,2,11,0.0909,1
