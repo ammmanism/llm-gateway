@@ -1,11 +1,12 @@
-import os
 import asyncio
 import json
 import logging
-from typing import Dict, Any, AsyncIterator
+import os
+from typing import Any, AsyncIterator, Dict
+
 from llm_gateway.providers.abstract import BaseProvider
+from llm_gateway.reliability.circuit_breaker import CircuitBreaker, CircuitOpenError
 from llm_gateway.reliability.retry import retry
-from llm_gateway.reliability.circuit_breaker import CircuitBreaker
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +28,11 @@ class AnthropicProvider(BaseProvider):
         Generate a complete response using Anthropic's API.
         """
         model = kwargs.get("model", self.default_model)
-        if not self.circuit_breaker.allow_request():
-            raise Exception("Circuit breaker is OPEN for Anthropic provider")
+        try:
+            self.circuit_breaker.allow_request()
+        except CircuitOpenError as e:
+            e.provider = "anthropic"
+            raise
 
         try:
             if not self.api_key:
@@ -84,8 +88,11 @@ class AnthropicProvider(BaseProvider):
         Stream a response using Anthropic's streaming events.
         """
         model = kwargs.get("model", self.default_model)
-        if not self.circuit_breaker.allow_request():
-            raise Exception("Circuit breaker is OPEN for Anthropic provider")
+        try:
+            self.circuit_breaker.allow_request()
+        except CircuitOpenError as e:
+            e.provider = "anthropic"
+            raise
 
         try:
             if not self.api_key:

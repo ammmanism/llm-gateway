@@ -1,0 +1,148 @@
+scenario,relative_time_ms,event,circuit_state,provider,details
+fast_recovery,0.0,scenario_start,CLOSED,,
+fast_recovery,0.0,request_failed,CLOSED,fast_recovery,Simulated outage
+fast_recovery,50.6,request_failed,CLOSED,fast_recovery,Simulated outage
+fast_recovery,100.8,request_failed,OPEN,fast_recovery,Simulated outage
+fast_recovery,151.0,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 0.4s
+fast_recovery,151.0,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 0.4s
+fast_recovery,151.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.4s
+fast_recovery,251.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.3s
+fast_recovery,351.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.2s
+fast_recovery,452.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.1s
+fast_recovery,552.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.0s
+fast_recovery,653.1,recovery_success,CLOSED,fast_recovery,6
+fast_recovery,653.1,scenario_end,CLOSED,,0.5020599002018571
+standard_recovery,0.0,scenario_start,CLOSED,,
+standard_recovery,0.0,request_failed,CLOSED,standard_recovery,Simulated outage
+standard_recovery,50.7,request_failed,CLOSED,standard_recovery,Simulated outage
+standard_recovery,101.0,request_failed,OPEN,standard_recovery,Simulated outage
+standard_recovery,151.1,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 2.0s
+standard_recovery,151.7,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 2.0s
+standard_recovery,151.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.0s
+standard_recovery,251.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.8s
+standard_recovery,352.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.8s
+standard_recovery,452.9,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.6s
+standard_recovery,553.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.5s
+standard_recovery,653.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.4s
+standard_recovery,754.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.3s
+standard_recovery,855.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.2s
+standard_recovery,955.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.1s
+standard_recovery,1056.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.0s
+standard_recovery,1156.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.9s
+standard_recovery,1257.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.8s
+standard_recovery,1357.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.7s
+standard_recovery,1457.9,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.6s
+standard_recovery,1558.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.5s
+standard_recovery,1658.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.4s
+standard_recovery,1759.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.3s
+standard_recovery,1859.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.2s
+standard_recovery,1960.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.1s
+standard_recovery,2060.9,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.0s
+standard_recovery,2161.5,recovery_success,CLOSED,standard_recovery,21
+standard_recovery,2161.5,scenario_end,CLOSED,,2.0099195998627692
+slow_recovery,0.0,scenario_start,CLOSED,,
+slow_recovery,0.0,request_failed,CLOSED,slow_recovery,Simulated outage
+slow_recovery,50.2,request_failed,CLOSED,slow_recovery,Simulated outage
+slow_recovery,100.7,request_failed,OPEN,slow_recovery,Simulated outage
+slow_recovery,151.6,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 4.9s
+slow_recovery,151.6,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 4.9s
+slow_recovery,151.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.9s
+slow_recovery,252.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.8s
+slow_recovery,352.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.7s
+slow_recovery,453.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.6s
+slow_recovery,553.9,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.5s
+slow_recovery,654.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.4s
+slow_recovery,754.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.3s
+slow_recovery,855.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.2s
+slow_recovery,956.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.1s
+slow_recovery,1056.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 4.0s
+slow_recovery,1156.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.9s
+slow_recovery,1257.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.8s
+slow_recovery,1358.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.7s
+slow_recovery,1459.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.6s
+slow_recovery,1559.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.5s
+slow_recovery,1660.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.4s
+slow_recovery,1760.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.3s
+slow_recovery,1861.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.2s
+slow_recovery,1961.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.1s
+slow_recovery,2062.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 3.0s
+slow_recovery,2162.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.9s
+slow_recovery,2263.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.8s
+slow_recovery,2363.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.7s
+slow_recovery,2464.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.6s
+slow_recovery,2564.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.5s
+slow_recovery,2665.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.4s
+slow_recovery,2766.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.3s
+slow_recovery,2867.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.2s
+slow_recovery,2968.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.1s
+slow_recovery,3068.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 2.0s
+slow_recovery,3169.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.9s
+slow_recovery,3270.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.8s
+slow_recovery,3370.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.7s
+slow_recovery,3471.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.6s
+slow_recovery,3571.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.5s
+slow_recovery,3672.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.4s
+slow_recovery,3772.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.3s
+slow_recovery,3873.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.2s
+slow_recovery,3973.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.1s
+slow_recovery,4074.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.0s
+slow_recovery,4174.9,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.9s
+slow_recovery,4275.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.8s
+slow_recovery,4375.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.7s
+slow_recovery,4475.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.6s
+slow_recovery,4576.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.5s
+slow_recovery,4676.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.4s
+slow_recovery,4777.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.3s
+slow_recovery,4878.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.2s
+slow_recovery,4978.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.1s
+slow_recovery,5078.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.0s
+slow_recovery,5179.3,recovery_success,CLOSED,slow_recovery,51
+slow_recovery,5179.3,scenario_end,CLOSED,,5.028053200105205
+high_threshold,0.0,scenario_start,CLOSED,,
+high_threshold,0.0,request_failed,CLOSED,high_threshold,Simulated outage
+high_threshold,51.1,request_failed,CLOSED,high_threshold,Simulated outage
+high_threshold,101.4,request_failed,CLOSED,high_threshold,Simulated outage
+high_threshold,152.2,request_failed,CLOSED,high_threshold,Simulated outage
+high_threshold,202.4,request_failed,OPEN,high_threshold,Simulated outage
+high_threshold,252.8,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 1.9s
+high_threshold,252.8,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 1.9s
+high_threshold,252.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.9s
+high_threshold,353.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.8s
+high_threshold,453.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.7s
+high_threshold,555.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.6s
+high_threshold,656.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.5s
+high_threshold,756.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.4s
+high_threshold,857.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.3s
+high_threshold,957.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.2s
+high_threshold,1058.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.1s
+high_threshold,1158.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.0s
+high_threshold,1258.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.9s
+high_threshold,1359.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.8s
+high_threshold,1460.1,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.7s
+high_threshold,1560.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.6s
+high_threshold,1661.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.5s
+high_threshold,1761.7,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.4s
+high_threshold,1862.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.3s
+high_threshold,1962.8,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.2s
+high_threshold,2063.4,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.1s
+high_threshold,2163.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.0s
+high_threshold,2264.0,recovery_success,CLOSED,high_threshold,21
+high_threshold,2264.0,scenario_end,CLOSED,,2.0111128999851644
+limited_probes,0.0,scenario_start,CLOSED,,
+limited_probes,0.0,request_failed,CLOSED,limited_probes,Simulated outage
+limited_probes,50.5,request_failed,CLOSED,limited_probes,Simulated outage
+limited_probes,101.0,request_failed,OPEN,limited_probes,Simulated outage
+limited_probes,151.6,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 1.0s
+limited_probes,151.6,request_rejected,OPEN,unknown,Circuit breaker OPEN for unknown. Retry after 1.0s
+limited_probes,151.6,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 1.0s
+limited_probes,252.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.8s
+limited_probes,352.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.8s
+limited_probes,453.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.7s
+limited_probes,553.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.5s
+limited_probes,653.5,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.5s
+limited_probes,754.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.3s
+limited_probes,854.3,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.2s
+limited_probes,955.0,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.1s
+limited_probes,1055.2,recovery_poll_rejected,OPEN,,Circuit breaker OPEN for unknown. Retry after 0.0s
+limited_probes,1156.0,recovery_success,CLOSED,limited_probes,11
+limited_probes,1156.0,scenario_end,CLOSED,,1.004474800080061

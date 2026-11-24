@@ -1,0 +1,6 @@
+scenario,time_to_detect_ms,time_to_switch_ms,requests_failed_during_switch,successful_failover_rate
+fast_recovery,100.8,552.3,5,0.0
+standard_recovery,101.0,2060.5,20,0.0
+slow_recovery,100.7,5078.6,50,0.0
+high_threshold,202.4,2061.5,20,0.0
+limited_probes,101.0,1055.0,10,0.0

@@ -1,9 +1,12 @@
-from typing import Any, Dict, AsyncIterator
-import time
-import httpx
 import json
 import logging
+import time
+from typing import Any, AsyncIterator, Dict
+
+import httpx
+
 from llm_gateway.providers.abstract import BaseProvider
+from llm_gateway.reliability.circuit_breaker import CircuitBreaker, CircuitOpenError
 
 logger = logging.getLogger("cost_aware_llm.providers.vllm")
 
@@ -17,24 +20,31 @@ class VLLMProvider(BaseProvider):
     def __init__(self, base_url: str = "http://localhost:8000/v1", timeout: int = 60):
         self.base_url = base_url
         self.timeout = timeout
+        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30)
 
     async def generate(self, prompt: str, **kwargs: Any) -> Dict[str, Any]:
         """
         Generate a complete response using a local vLLM instance.
         """
+        try:
+            self.circuit_breaker.allow_request()
+        except CircuitOpenError as e:
+            e.provider = "vllm"
+            raise
+
         start_time = time.time()
-        
+
         payload = {
             "model": kwargs.get("model", "local-model"),
             "messages": [{"role": "user", "content": prompt}],
             "stream": False
         }
-        
+
         if "temperature" in kwargs:
             payload["temperature"] = kwargs["temperature"]
         if "max_tokens" in kwargs:
             payload["max_tokens"] = kwargs["max_tokens"]
-            
+
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 response = await client.post(
@@ -43,9 +53,10 @@ class VLLMProvider(BaseProvider):
                 )
                 response.raise_for_status()
                 data = response.json()
-                
+
                 latency = int((time.time() - start_time) * 1000)
-                
+                self.circuit_breaker.record_success()
+
                 return {
                     "provider": "vllm",
                     "model": payload["model"],
@@ -57,6 +68,7 @@ class VLLMProvider(BaseProvider):
                     }
                 }
             except Exception as e:
+                self.circuit_breaker.record_failure()
                 logger.error(f"vLLM generation failed: {e}")
                 raise
 
@@ -64,12 +76,18 @@ class VLLMProvider(BaseProvider):
         """
         Stream a response from the local vLLM instance.
         """
+        try:
+            self.circuit_breaker.allow_request()
+        except CircuitOpenError as e:
+            e.provider = "vllm"
+            raise
+
         payload = {
             "model": kwargs.get("model", "local-model"),
             "messages": [{"role": "user", "content": prompt}],
             "stream": True
         }
-        
+
         if "temperature" in kwargs:
             payload["temperature"] = kwargs["temperature"]
 
@@ -86,7 +104,9 @@ class VLLMProvider(BaseProvider):
                                     yield delta["content"]
                             except json.JSONDecodeError:
                                 continue
+                self.circuit_breaker.record_success()
             except Exception as e:
+                self.circuit_breaker.record_failure()
                 logger.error(f"vLLM streaming failed: {e}")
                 raise
 
