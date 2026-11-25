@@ -1,0 +1,3 @@
+scenario,workers,operations,budget_usd,estimated_cost_usd,allowed,rejected,total_spent_usd,overspend_usd,passed
+memory_single_process,1,200,1.0,0.01,100,100,1.0,0.0,True
+redis_two_workers,2,200,1.0,0.01,100,100,1.0,0.0,True
