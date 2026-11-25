@@ -11,6 +11,7 @@ JSON files under this directory.
 | `cost_ledger_sample.csv` | `benchmarks/cost_attribution_demo.py` |
 | `prometheus_metrics_snapshot.txt` | `benchmarks/metrics_snapshot.py` |
 | `redis_consistency.csv` | `benchmarks/redis_consistency.py` |
+| `budget_atomic_race.csv` | `benchmarks/budget_atomic_race.py` |
 | `otel_span_sample.csv` | `benchmarks/otel_span_summary.py` |
 | `coverage_summary.csv` | `pytest --cov` + `benchmarks/coverage_summary.py` |
 

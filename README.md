@@ -4,7 +4,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/tests-79%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-87%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License">
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
@@ -39,6 +39,7 @@ still missing.
 | You cannot say who spent what | SQLite ledger, one row per `(request_id, attempt)`, cache hits recorded at $0 | 4 provider rows + 1 cache hit · [CSV](data/evidence/cost_ledger_sample.csv) · [`/v1/costs`](src/llm_gateway/core/server.py) |
 | Metrics exist but nothing populates them | Prometheus counters/histograms on the real request path | [Exposition snapshot](data/evidence/prometheus_metrics_snapshot.txt) · [Grafana dashboard JSON](deploy/grafana/llm_gateway_dashboard.json) · [screenshot](docs/evidence/figures/grafana_dashboard.png) |
 | Distributed state is hard to trust | Two independent workers share RPM limits, exact cache, and budget totals through Redis | 10/20 requests allowed, cache shared, `$2.00` summed exactly · [CSV](data/evidence/redis_consistency.csv) |
+| Concurrent requests can overspend a hard cap | Atomic per-attempt budget reservation with reconcile/release | 200 reservations → 100 allowed, **$0.000000 overspend** · [CSV](data/evidence/budget_atomic_race.csv) |
 | Traces may be created but never exported | Real OTLP collector captures the `generate_request` span and all required attributes | [Span CSV](data/evidence/otel_span_sample.csv) · [collector config](deploy/observability/otel-collector-config.yaml) |
 
 ## Measured results
@@ -53,9 +54,10 @@ All values are copied from committed CSVs. The scripts are in `benchmarks/`.
 | Semantic cache, threshold `0.80` | **37.5%** hit rate, **8.3%** hard-negative FP (one wrong answer) |
 | Semantic cache, threshold `0.95` (old default) | **0%** hit rate on the same 24 paraphrases |
 | Circuit breaker, 2 s recovery timeout | detect **101 ms**, recover **2049 ms**, all 5 scenarios recovered |
-| Test suite | **79 passed** with Redis enabled (`python -m pytest tests/ -q`) |
-| Branch coverage | **48.42%** — 1,855 / 3,538 statements, 263 / 836 branches · [CSV](data/evidence/coverage_summary.csv) |
+| Test suite | **87 passed** with Redis enabled (`python -m pytest tests/ -q`) |
+| Branch coverage | **50.21%** — 1,944 / 3,591 statements, 284 / 846 branches · [CSV](data/evidence/coverage_summary.csv) |
 | Redis consistency | 2 workers: **10/20** RPM attempts allowed, cache shared, budget total exact |
+| Atomic budget race | 200 reservations → **100 allowed**, **$0.000000 overspend** |
 | OTLP export | real collector captured `provider`, `model`, tokens, cost, latency, cache flag |
 
 The overhead is dominated by auth, validation, dual-metric rate limiting,
@@ -117,6 +119,7 @@ python benchmarks/fallback_recovery.py       # -> data/evidence/fallback_recover
 python benchmarks/cost_attribution_demo.py   # -> data/evidence/cost_ledger_sample.csv
 python benchmarks/metrics_snapshot.py        # -> data/evidence/prometheus_metrics_snapshot.txt
 python benchmarks/redis_consistency.py       # requires Redis; -> data/evidence/redis_consistency.csv
+python benchmarks/budget_atomic_race.py      # requires Redis; -> data/evidence/budget_atomic_race.csv
 python benchmarks/plot_evidence.py           # -> docs/evidence/figures/*.png
 ```
 
@@ -175,13 +178,13 @@ flowchart TD
 
 ```text
 $ python -m pytest tests/ -q
-79 passed, 8 warnings in 61.02s (0:01:01)
+87 passed, 8 warnings in 68.16s (0:01:08)
 ```
 
 With Redis enabled and branch coverage:
 
 ```text
-TOTAL  3538 statements, 1683 missed, 836 branches, 573 missed  48%
+TOTAL  3591 statements, 1647 missed, 846 branches, 562 missed  50%
 ```
 
 New coverage includes:
@@ -208,7 +211,7 @@ it targets removed APIs and is not counted above.
   budget counters use Redis when configured; a two-worker consistency check is
   committed, but this is not a high-scale load test.
 - Auth is a demonstration API-key/tenant map, not a full virtual-key database.
-- Branch coverage is **48.42%**. CI publishes the full report; raising it toward
+- Branch coverage is **50.21%**. CI publishes the full report; raising it toward
   80% is the next quality goal.
 - Benchmarks use a deterministic fake provider to isolate gateway cost from
   provider network variance. They are not claims about real provider latency.

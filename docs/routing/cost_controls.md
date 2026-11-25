@@ -32,14 +32,19 @@ DEFAULT_BUDGET_USD=10.0
 BUDGET_REDIS_TTL_SECONDS=2592000
 ```
 
-If `REDIS_URL` is set, spend is tracked in Redis with `INCRBYFLOAT`. Without
-Redis, the enforcer uses in-memory tracking for local development and tests.
-Budget checks and increments are separate operations, so concurrent requests
-can still race between check and commit; atomic reservation is future work.
+If `REDIS_URL` is set, reservations and spend use Redis Lua/`INCRBYFLOAT`.
+Without Redis, an `asyncio.Lock` protects the in-memory path. Reservations are
+atomic: concurrent requests cannot all spend the same remaining budget.
 
 ## Request Lifecycle
 
 1. The gateway sanitizes the prompt and selects candidate models.
-2. It estimates prompt cost for the first model and checks remaining budget.
-3. On success, it records actual request cost and updates tenant spend.
-4. If the tenant is out of budget, the gateway returns `402`.
+2. After a cache miss, it atomically reserves the estimated cost for the next
+   provider attempt.
+3. On success, it replaces the reservation with actual provider cost.
+4. On failure, it releases the reservation before trying a fallback model.
+5. If the reservation is denied, the gateway returns `402` without calling the
+   provider.
+
+Evidence: `data/evidence/budget_atomic_race.csv` (200 concurrent reservations,
+zero overspend).

@@ -139,5 +139,6 @@ components, while dedicated Redis tests exercise the distributed paths.
 ## 18. Statement coverage and branch coverage tell different stories
 
 The same suite reported 53% statement coverage but 48.42% once branches were
-included. Both are real; the README now quotes the stricter branch number and
-links the per-module CSV.
+included. After adding atomic-budget and HTTP lifecycle tests, branch coverage
+rose to **50.21%**. Both are real; the README quotes the stricter branch number
+and links the per-module CSV.
