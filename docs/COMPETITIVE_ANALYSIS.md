@@ -35,7 +35,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 | Fallback on 429/5xx / open circuit | ✅ YAML chain, tested | ✅ | ✅ | ✅ |
 | Circuit breaker with limited half-open probes | ✅ CLOSED/OPEN/HALF_OPEN, probe cap, tests | ✅ | ✅ | ✅ |
 | Dual-metric rate limiting (RPM + TPM) | ✅ per tenant, Redis Lua + in-memory fallback | ✅ | ✅ | ✅ |
-| Per-tenant budgets / virtual keys | 🟡 spending cap + API-key tenant map; not a full key database | ✅ virtual keys, budgets | ✅ | ✅ virtual keys, budgets |
+| Per-tenant budgets / virtual keys | 🟡 atomic tenant spending cap + API-key tenant map; not a full key database | ✅ virtual keys, budgets | ✅ | ✅ virtual keys, budgets |
 | Exact cache | ✅ Redis or in-process TTL | ✅ | ✅ | ✅ |
 | Semantic cache | ✅ in-process FAISS HNSW, neural embeddings, measured threshold sweep | ✅ Redis/Valkey-backed | ✅ simple + semantic | ✅ |
 | Cache threshold evidence committed | ✅ `semantic_threshold_sweep.csv` incl. hard negatives | ❔ | ❔ | ❔ |
@@ -46,7 +46,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 | MCP gateway | ➖ | ➖ | ❔ | ✅ |
 | Managed UI / control plane | ➖ | 🟡 admin UI | ✅ | ✅ web UI |
 | Committed, reproducible evidence artifacts | ✅ every claim maps to a CSV + script | ❔ | ❔ | ❔ |
-| Test suite | ✅ 79 passing with Redis (`pytest tests/ -q`) | ✅ | ✅ | ✅ |
+| Test suite | ✅ 87 passing with Redis (`pytest tests/ -q`) | ✅ | ✅ | ✅ |
 
 ## What is genuinely differentiated here
 
@@ -80,7 +80,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
   with rotation, scopes, or per-key budgets.
 - **Guardrails.** Regex PII detection only. Portkey's guardrail catalogue and
   Bifrost's MCP gateway are out of scope here.
-- **Coverage.** Branch coverage is **48.42%**. Ruff lint and formatting are green,
+- **Coverage.** Branch coverage is **50.21%**. Ruff lint and formatting are green,
   and CI publishes the full coverage report; raising coverage toward 80% is the
   next quality goal.
 

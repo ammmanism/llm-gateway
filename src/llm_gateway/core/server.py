@@ -350,17 +350,6 @@ async def generate(request: GenerateRequest, req: Request):
         record_failure(request.tenant_id, "provider")
         raise HTTPException(status_code=503, detail="No models available for request")
 
-    estimated_cost = cost_tracker.estimate_text_cost(models[0], prompt_sanitized)
-    if not await budget_enforcer.check_budget(request.tenant_id, estimated_cost):
-        record_failure(request.tenant_id, "budget")
-        record_budget_rejection(request.tenant_id)
-        remaining = await budget_enforcer.get_remaining_budget(request.tenant_id)
-        update_budget_remaining(request.tenant_id, remaining)
-        raise HTTPException(
-            status_code=402,
-            detail=f"Budget exceeded; remaining budget is ${remaining:.4f}",
-        )
-
     # Get fallback chain from dynamic policy
     fallback_models = get_fallback_chain_from_policy(request.tenant_id, models[0])
 
@@ -447,6 +436,25 @@ async def generate(request: GenerateRequest, req: Request):
     # Try models in chain
     last_error = None
     for m_name in fallback_models:
+        attempt_estimated_cost = cost_tracker.estimate_text_cost(
+            m_name, prompt_sanitized
+        )
+        reservation = await budget_enforcer.reserve_budget(
+            request.tenant_id, attempt_estimated_cost
+        )
+        if not reservation.allowed:
+            record_failure(request.tenant_id, "budget")
+            record_budget_rejection(request.tenant_id)
+            update_budget_remaining(request.tenant_id, reservation.remaining_usd)
+            raise HTTPException(
+                status_code=402,
+                detail=(
+                    "Budget exceeded; remaining budget is "
+                    f"${reservation.remaining_usd:.4f}"
+                ),
+            )
+
+        budget_settled = False
         try:
             # Wrap with batcher for small requests
             result = await request_batcher.submit(
@@ -455,106 +463,117 @@ async def generate(request: GenerateRequest, req: Request):
                 request.tenant_id,
                 execute_generation,
             )
+            if result["status"] != "success":
+                raise RuntimeError(result.get("message", "Generation failed"))
+            latency = (time.perf_counter() - start_time) * 1000
 
-            if result["status"] == "success":
-                latency = (time.perf_counter() - start_time) * 1000
+            # Normalize provider-reported usage, with explicit estimation fallback
+            prompt_tokens, completion_tokens, usage_source = extract_token_usage(
+                result,
+                prompt_sanitized,
+                result["output"],
+            )
+            actual_tokens = prompt_tokens + completion_tokens
 
-                # Normalize provider-reported usage, with explicit estimation fallback
-                prompt_tokens, completion_tokens, usage_source = extract_token_usage(
-                    result,
-                    prompt_sanitized,
-                    result["output"],
-                )
-                actual_tokens = prompt_tokens + completion_tokens
+            # Reconcile TPM reservation with actual usage
+            await rate_limiter.reconcile_tokens(
+                request.tenant_id,
+                estimated_tokens=estimated_total_tokens,
+                actual_tokens=actual_tokens,
+            )
 
-                # Reconcile TPM reservation with actual usage
-                await rate_limiter.reconcile_tokens(
-                    request.tenant_id,
-                    estimated_tokens=estimated_total_tokens,
-                    actual_tokens=actual_tokens,
-                )
+            cost = cost_tracker.calculate_cost(m_name, actual_tokens)
+            spent = await budget_enforcer.reconcile_cost(
+                request.tenant_id,
+                attempt_estimated_cost,
+                cost,
+            )
+            budget_settled = True
+            update_budget_remaining(
+                request.tenant_id,
+                max(0.0, budget_enforcer.default_budget - spent),
+            )
 
-                cost = cost_tracker.calculate_cost(m_name, actual_tokens)
+            # Record metrics
+            record_latency(
+                request.tenant_id, result["model"], result["provider"], latency
+            )
+            record_tokens(
+                request.tenant_id, result["model"], prompt_tokens, completion_tokens
+            )
+            record_cost_metric(
+                request.tenant_id, result["model"], result["provider"], cost
+            )
+            record_request(
+                request.tenant_id, result["model"], result["provider"], "success"
+            )
+            record_cache_miss(request.tenant_id)
 
-                # Record metrics
-                record_latency(
-                    request.tenant_id, result["model"], result["provider"], latency
-                )
-                record_tokens(
-                    request.tenant_id, result["model"], prompt_tokens, completion_tokens
-                )
-                record_cost_metric(
-                    request.tenant_id, result["model"], result["provider"], cost
-                )
-                record_request(
-                    request.tenant_id, result["model"], result["provider"], "success"
-                )
-                record_cache_miss(request.tenant_id)
-
-                # Record fallback if not first attempt
-                attempt_idx = fallback_models.index(m_name)
-                if attempt_idx > 0:
-                    record_fallback(
-                        request.tenant_id, fallback_models[0], m_name, "error"
-                    )
-                    if current_span:
-                        current_span.set_attribute("fallback_attempt", attempt_idx)
-
-                # Set span attributes for observability
+            # Record fallback if not first attempt
+            attempt_idx = fallback_models.index(m_name)
+            if attempt_idx > 0:
+                record_fallback(request.tenant_id, fallback_models[0], m_name, "error")
                 if current_span:
-                    current_span.set_attribute("cache_hit", False)
-                    current_span.set_attribute("model", result["model"])
-                    current_span.set_attribute("provider", result["provider"])
-                    current_span.set_attribute("prompt_tokens", prompt_tokens)
-                    current_span.set_attribute("completion_tokens", completion_tokens)
-                    current_span.set_attribute("cost_usd", cost)
-                    current_span.set_attribute("latency_ms", latency)
+                    current_span.set_attribute("fallback_attempt", attempt_idx)
 
-                # Feedback to Adaptive Router
-                await adaptive_router.record_result(m_name, True, latency, cost)
-                record_cost(request.tenant_id, m_name, result["provider"], cost)
-                await budget_enforcer.add_cost(request.tenant_id, cost)
+            # Set span attributes for observability
+            if current_span:
+                current_span.set_attribute("cache_hit", False)
+                current_span.set_attribute("model", result["model"])
+                current_span.set_attribute("provider", result["provider"])
+                current_span.set_attribute("prompt_tokens", prompt_tokens)
+                current_span.set_attribute("completion_tokens", completion_tokens)
+                current_span.set_attribute("cost_usd", cost)
+                current_span.set_attribute("latency_ms", latency)
 
-                # Persist cost attribution (one row per attempt, idempotent)
-                await cost_ledger.record(
-                    new_entry(
-                        request_id=request_id,
-                        attempt=fallback_models.index(m_name),
-                        tenant_id=request.tenant_id,
-                        provider=result["provider"],
-                        model=result["model"],
-                        prompt_tokens=prompt_tokens,
-                        completion_tokens=completion_tokens,
-                        cost_usd=cost,
-                        cache_hit=False,
-                        usage_source=usage_source,
-                    )
-                )
+            # Feedback to Adaptive Router
+            await adaptive_router.record_result(m_name, True, latency, cost)
+            record_cost(request.tenant_id, m_name, result["provider"], cost)
 
-                # Cache and Quota
-                if cache_enabled:
-                    await two_tier_cache.set(
-                        prompt_sanitized,
-                        result,
-                        tenant_id=request.tenant_id,
-                        model=cache_model,
-                        params=cache_params,
-                    )
-                await quota_manager.consume(request.tenant_id, tokens=completion_tokens)
-
-                return GenerateResponse(
-                    model=result["model"],
-                    output=result["output"],
+            # Persist cost attribution (one row per attempt, idempotent)
+            await cost_ledger.record(
+                new_entry(
+                    request_id=request_id,
+                    attempt=fallback_models.index(m_name),
+                    tenant_id=request.tenant_id,
                     provider=result["provider"],
-                    latency_ms=latency,
-                    mock=result.get("mock", False),
-                    cache_hit=False,
+                    model=result["model"],
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                     cost_usd=cost,
+                    cache_hit=False,
+                    usage_source=usage_source,
                 )
+            )
+
+            # Cache and Quota
+            if cache_enabled:
+                await two_tier_cache.set(
+                    prompt_sanitized,
+                    result,
+                    tenant_id=request.tenant_id,
+                    model=cache_model,
+                    params=cache_params,
+                )
+            await quota_manager.consume(request.tenant_id, tokens=completion_tokens)
+
+            return GenerateResponse(
+                model=result["model"],
+                output=result["output"],
+                provider=result["provider"],
+                latency_ms=latency,
+                mock=result.get("mock", False),
+                cache_hit=False,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                cost_usd=cost,
+            )
         except Exception as e:
             logger.warning(f"Model {m_name} failed: {e}")
+            if not budget_settled:
+                await budget_enforcer.release_cost(
+                    request.tenant_id, attempt_estimated_cost
+                )
 
             # Get circuit breaker state for this provider
             provider = ProviderFactory.get_provider_for_model(m_name)

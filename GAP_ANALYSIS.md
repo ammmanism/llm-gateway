@@ -33,6 +33,7 @@ the third column regenerates it.
 | `docs/evidence/figures/grafana_dashboard.png` | Live Grafana dashboard populated by the running gateway (request rate, cache ratio, latency, cost, fallbacks, rate limits) | `deploy/observability/docker-compose.yml` + `benchmarks/capture_grafana.py` |
 | `data/evidence/otel_span_sample.csv` | Real OTLP collector export with provider/model/token/cost/latency/cache attributes | `deploy/observability/otel-collector-config.yaml` + `benchmarks/otel_span_summary.py` |
 | `data/evidence/redis_consistency.csv` | Two workers share RPM limits and exact cache; concurrent budget increments sum exactly | `benchmarks/redis_consistency.py` |
+| `data/evidence/budget_atomic_race.csv` | 200 concurrent reservations never exceed a $1 cap; zero overspend | `benchmarks/budget_atomic_race.py` |
 | `data/evidence/coverage_summary.csv` | Real statement/branch coverage by module | `pytest --cov` + `benchmarks/coverage_summary.py` |
 | `docs/evidence/figures/gateway_overhead.png` | Chart of the overhead CSV | `benchmarks/plot_evidence.py` |
 | `docs/evidence/figures/semantic_threshold_tradeoff.png` | Chart of the sweep CSV | `benchmarks/plot_evidence.py` |
@@ -42,7 +43,7 @@ the third column regenerates it.
 
 ### Medium priority
 
-1. **Branch coverage is 48.42%.** The report is real and committed, and CI
+1. **Branch coverage is 50.21%.** The report is real and committed, and CI
    publishes HTML/XML artifacts, but coverage is below a production-oriented
    target. Next step: add provider-adapter, fallback-policy, and streaming tests.
 2. **Semantic cache is per process.** The FAISS index is in-process. Production
@@ -71,6 +72,8 @@ the third column regenerates it.
 - Redis paths were verified with two independent worker processes.
 - Provider usage normalization is covered for OpenAI/Anthropic/Gemini/Together,
   Groq, Ollama, and vLLM response shapes.
+- Budget reservation is atomic in Redis and memory, wired per provider attempt,
+  and verified with zero overshoot under 200 concurrent reservations.
 - CI runs the full test suite and the real evidence generators instead of stale
   benchmark JSON.
 
@@ -78,7 +81,7 @@ the third column regenerates it.
 
 ```
 python -m pytest tests/ -q
-79 passed, 8 warnings in 61.02s (0:01:01)
+87 passed, 8 warnings in 68.16s (0:01:08)
 ```
 
 ```
@@ -89,7 +92,7 @@ python -m ruff format --check .
 150 files already formatted
 ```
 
-Branch coverage: **48.42%** (`data/evidence/coverage_summary.csv`).
+Branch coverage: **50.21%** (`data/evidence/coverage_summary.csv`).
 
 `tests/modality` was quarantined to `_superseded/tests-modality/` with a README
 explaining that it targets removed `SemanticRouter` / `CostOptimizer` /
