@@ -119,6 +119,7 @@ with `"mock": true`. Routing, caching, limits, and failover are still real.
 ## Reproduce the evidence
 
 ```bash
+export ALLOW_DEMO_KEYS=true  # benchmark scripts use deterministic fake providers
 python benchmarks/gateway_overhead.py        # -> data/evidence/gateway_overhead_benchmark.csv
 python benchmarks/semantic_threshold_sweep.py # -> data/evidence/semantic_threshold_sweep.csv
 python benchmarks/fallback_recovery.py       # -> data/evidence/fallback_recovery.csv + timeline
