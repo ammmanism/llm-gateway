@@ -8,6 +8,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+import asyncpg
+import redis.asyncio as redis
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace as otel_trace
@@ -15,6 +17,9 @@ from pydantic import BaseModel, Field
 
 from llm_gateway.auth.admin.router import router as tenant_admin_router
 from llm_gateway.auth.budget_enforcer import BudgetEnforcer
+from llm_gateway.auth.cached_key_store import CachedVirtualKeyStore
+from llm_gateway.auth.key_store import VirtualKeyStore
+from llm_gateway.auth.postgres_key_store import PostgresVirtualKeyStore
 from llm_gateway.auth.quota_manager import QuotaManager
 from llm_gateway.billing.cost_ledger import CostLedger, new_entry
 from llm_gateway.cache.cache_manager import CacheManager
@@ -121,10 +126,34 @@ def _request_limiters(req: Request, tenant_id: str):
 init_admin_deps(cache_manager, quota_manager, budget_enforcer, health_checker)
 
 
+async def _create_virtual_key_store():
+    database_url = os.environ.get("DATABASE_URL", "")
+    pool = None
+    if database_url.startswith("postgresql://") or database_url.startswith(
+        "postgres://"
+    ):
+        pool = await asyncpg.create_pool(database_url)
+        store = PostgresVirtualKeyStore(pool)
+        await store.initialize()
+    else:
+        store = VirtualKeyStore(os.environ.get("API_KEY_DB_PATH"))
+
+    redis_url = os.environ.get("REDIS_URL")
+    if redis_url:
+        store = CachedVirtualKeyStore(
+            store,
+            redis.from_url(redis_url, decode_responses=True),
+        )
+    return store, pool
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting LLM Gateway...")
+    key_store, key_store_pool = await _create_virtual_key_store()
+    app.state.virtual_key_store = key_store
+    app.state.key_store_pool = key_store_pool
     # Initialize OpenTelemetry
     init_tracing(app, service_name="llm-gateway")
     ProviderFactory.get_all_providers()
@@ -140,6 +169,8 @@ async def lifespan(app: FastAPI):
         await cost_ledger.close()
     except Exception as exc:
         logger.warning("Cost ledger shutdown failed: %s", exc)
+    if key_store_pool is not None:
+        await key_store_pool.close()
     logger.info("Gateway shutdown")
 
 
