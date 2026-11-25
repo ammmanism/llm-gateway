@@ -51,11 +51,11 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
             "true",
             "yes",
         }
-        self.key_store = key_store or VirtualKeyStore()
+        self.key_store = key_store
         redis_url = os.environ.get("REDIS_URL")
-        if redis_url:
+        if key_store is not None and redis_url:
             self.key_store = CachedVirtualKeyStore(
-                self.key_store,
+                key_store,
                 redis.from_url(redis_url, decode_responses=True),
             )
 
@@ -82,7 +82,10 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
                 content={"detail": "Invalid API Key", "mock": False},
             )
 
-        key = await self.key_store.get_key(api_key)
+        store = getattr(request.app.state, "virtual_key_store", None)
+        if store is None:
+            store = self.key_store or VirtualKeyStore()
+        key = await store.get_key(api_key)
         if key is None:
             if not self.allow_demo_keys:
                 return JSONResponse(
