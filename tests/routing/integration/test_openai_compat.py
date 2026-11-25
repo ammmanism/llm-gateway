@@ -174,6 +174,24 @@ async def test_stream_budget_rejection_returns_402_before_sse(openai_client):
 
 
 @pytest.mark.asyncio
+async def test_legacy_stream_uses_same_accounting_pipeline(openai_client):
+    _, http, _, ledger, budget = openai_client
+    response = await http.post(
+        "/generate/stream",
+        headers={"Authorization": "Bearer sk-test"},
+        json={"prompt": "legacy stream", "model": "gpt-4o"},
+    )
+
+    assert response.status_code == 200
+    assert '"chunk": "hello "' in response.text
+    assert '"usage"' in response.text
+    assert '"cost_usd"' in response.text
+    assert "data: [DONE]" in response.text
+    assert len(ledger.entries) == 1
+    assert await budget.get_spend("default") > 0
+
+
+@pytest.mark.asyncio
 async def test_stream_failure_releases_budget_and_writes_no_ledger(openai_client):
     _, http, provider, ledger, budget = openai_client
     provider.fail_stream = True

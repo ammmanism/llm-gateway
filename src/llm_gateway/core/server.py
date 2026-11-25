@@ -46,7 +46,6 @@ from llm_gateway.core.openai_compat import (
 from llm_gateway.observability.logging_middleware import StructuredLoggingMiddleware
 from llm_gateway.observability.metrics.cost_metrics import record_cost
 from llm_gateway.observability.metrics.prometheus import (
-    failure_counter,
     metrics_endpoint,
     record_budget_rejection,
     record_cache_hit,
@@ -857,6 +856,8 @@ async def _stream_generation(prepared: dict):
                 "type": "usage",
                 "prompt_tokens": prompt_tokens,
                 "completion_tokens": completion_tokens,
+                "cost_usd": cost,
+                "latency_ms": latency,
             }
         except asyncio.CancelledError:
             raise
@@ -907,168 +908,33 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
 
 @app.post("/generate/stream")
 async def generate_stream(request: GenerateRequest, req: Request):
-    """Goat-tier streaming with backpressure and adaptive telemetry."""
-    start_time = time.perf_counter()
+    """Legacy SSE endpoint using the shared accounted streaming pipeline."""
+    prepared = await _prepare_stream(request, req)
+    model = prepared["model"]
 
-    if hasattr(req.state, "tenant_id"):
-        request.tenant_id = req.state.tenant_id
+    async def legacy_sse():
+        async for event in _stream_generation(prepared):
+            if event["type"] == "content":
+                payload = {"chunk": event["content"], "model": model}
+            elif event["type"] == "usage":
+                payload = {
+                    "usage": {
+                        "prompt_tokens": event["prompt_tokens"],
+                        "completion_tokens": event["completion_tokens"],
+                        "total_tokens": (
+                            event["prompt_tokens"] + event["completion_tokens"]
+                        ),
+                    },
+                    "cost_usd": event["cost_usd"],
+                    "latency_ms": event["latency_ms"],
+                    "model": model,
+                }
+            else:
+                payload = {"error": event["message"]}
+            yield f"data: {json.dumps(payload)}\n\n"
+        yield "data: [DONE]\n\n"
 
-    # Templating resolution
-    prompt_text = request.prompt
-    if request.template_id:
-        try:
-            prompt_text = template_manager.render(
-                request.template_id, request.variables or {}
-            )
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
-    if not prompt_text:
-        raise HTTPException(
-            status_code=400, detail="Either 'prompt' or 'template_id' must be provided"
-        )
-
-    # Validation & Sanitization
-    is_valid, error_msg = SentinelFirewall.validate(prompt_text, request.tenant_id)
-    if not is_valid:
-        record_failure(request.tenant_id, "validation")
-        raise HTTPException(status_code=400, detail=error_msg)
-    prompt_sanitized = SentinelFirewall.sanitize(prompt_text)
-
-    # Rate limiting for streaming
-    estimated_prompt_tokens = len(prompt_sanitized.split())
-    estimated_completion_tokens = 1024
-    estimated_total_tokens = estimated_prompt_tokens + estimated_completion_tokens
-
-    rate_limit_result = await rate_limiter.check_and_reserve(
-        request.tenant_id,
-        estimated_tokens=estimated_total_tokens,
-    )
-    if not rate_limit_result.allowed:
-        failure_counter.inc()
-        retry_after = max(
-            rate_limit_result.retry_after_rpm, rate_limit_result.retry_after_tpm
-        )
-        limit_type = rate_limit_result.limit_exceeded.upper()
-        raise HTTPException(
-            status_code=429,
-            detail=f"{limit_type} rate limit exceeded",
-            headers={
-                "X-RateLimit-RPM-Remaining": str(rate_limit_result.rpm_remaining),
-                "X-RateLimit-TPM-Remaining": str(rate_limit_result.tpm_remaining),
-                "Retry-After": str(int(retry_after) + 1),
-            },
-        )
-
-    # Model selection
-    if request.model:
-        models = [request.model]
-    else:
-        models = await adaptive_router.select_models({"prompt": prompt_sanitized})
-
-    if not models:
-        record_failure(request.tenant_id, "provider")
-        # Release reservation since we're not making provider call
-        await rate_limiter.release_reservation(
-            request.tenant_id, estimated_total_tokens
-        )
-        raise HTTPException(status_code=503, detail="No models available for stream")
-
-    m_name = models[0]
-    estimated_cost = cost_tracker.estimate_text_cost(m_name, prompt_sanitized)
-    if not await budget_enforcer.check_budget(request.tenant_id, estimated_cost):
-        record_failure(request.tenant_id, "budget")
-        record_budget_rejection(request.tenant_id)
-        await rate_limiter.release_reservation(
-            request.tenant_id, estimated_total_tokens
-        )
-        remaining = await budget_enforcer.get_remaining_budget(request.tenant_id)
-        update_budget_remaining(request.tenant_id, remaining)
-        raise HTTPException(
-            status_code=402,
-            detail=f"Budget exceeded; remaining budget is ${remaining:.4f}",
-        )
-
-    provider = ProviderFactory.get_provider_for_model(m_name)
-    if not provider:
-        await rate_limiter.release_reservation(
-            request.tenant_id, estimated_total_tokens
-        )
-        raise HTTPException(status_code=503, detail=f"No provider for {m_name}")
-
-    async def stream_wrapper():
-        full_output = []
-        stream_span = otel_trace.get_current_span()
-        if stream_span:
-            stream_span.set_attribute("tenant_id", request.tenant_id)
-            stream_span.set_attribute("model", m_name)
-            stream_span.set_attribute("provider", provider.__class__.__name__)
-            stream_span.set_attribute("streaming", True)
-
-        try:
-            async for chunk in provider.stream_generate(
-                prompt=prompt_sanitized, model=m_name
-            ):
-                full_output.append(chunk)
-                yield f"data: {json.dumps({'chunk': chunk, 'model': m_name})}\n\n"
-
-            # Post-stream telemetry
-            latency = (time.perf_counter() - start_time) * 1000
-            prompt_tokens = len(prompt_sanitized.split())
-            completion_tokens = len(full_output)
-            actual_tokens = prompt_tokens + completion_tokens
-
-            # Reconcile TPM reservation
-            await rate_limiter.reconcile_tokens(
-                request.tenant_id,
-                estimated_tokens=estimated_total_tokens,
-                actual_tokens=actual_tokens,
-            )
-
-            cost = cost_tracker.calculate_cost(m_name, actual_tokens)
-
-            # Record metrics
-            record_latency(
-                request.tenant_id, m_name, provider.__class__.__name__, latency
-            )
-            record_tokens(request.tenant_id, m_name, prompt_tokens, completion_tokens)
-            record_cost_metric(
-                request.tenant_id, m_name, provider.__class__.__name__, cost
-            )
-            record_request(
-                request.tenant_id, m_name, provider.__class__.__name__, "success"
-            )
-            record_cache_miss(request.tenant_id)
-
-            if stream_span:
-                stream_span.set_attribute("cache_hit", False)
-                stream_span.set_attribute("prompt_tokens", prompt_tokens)
-                stream_span.set_attribute("completion_tokens", completion_tokens)
-                stream_span.set_attribute("cost_usd", cost)
-                stream_span.set_attribute("latency_ms", latency)
-
-            await adaptive_router.record_result(m_name, True, latency, cost)
-            record_cost(request.tenant_id, m_name, provider.__class__.__name__, cost)
-            await budget_enforcer.add_cost(request.tenant_id, cost)
-
-            yield "data: [DONE]\n\n"
-        except Exception as e:
-            logger.error(f"Stream failed for {m_name}: {e}")
-            record_failure(request.tenant_id, "stream_failed")
-            record_request(
-                request.tenant_id, m_name, provider.__class__.__name__, "error"
-            )
-            if stream_span:
-                stream_span.set_attribute("error.type", "stream_failed")
-                stream_span.set_attribute("error.message", str(e))
-            # Release reservation on failure
-            await rate_limiter.release_reservation(
-                request.tenant_id, estimated_total_tokens
-            )
-            await adaptive_router.record_result(m_name, False, 5000, 0.0)
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-    return StreamingResponse(stream_wrapper(), media_type="text/event-stream")
+    return StreamingResponse(legacy_sse(), media_type="text/event-stream")
 
 
 class TemplateRequest(BaseModel):
