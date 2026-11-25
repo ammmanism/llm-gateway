@@ -64,3 +64,42 @@ async def test_validation_rejects_invalid_policy(store):
         await store.create_key("tenant-a", rpm_limit=0)
     with pytest.raises(ValueError):
         await store.create_key("tenant-a", budget_usd=-1.0)
+
+
+@pytest.mark.asyncio
+async def test_rotation_revokes_old_key_and_preserves_tenant(store):
+    old_key, old_metadata = await store.create_key("tenant-a", scopes=("generate",))
+
+    rotated = await store.rotate_key(
+        old_key, scopes=("generate", "costs"), rpm_limit=50, budget_usd=20.0
+    )
+
+    assert rotated is not None
+    new_key, new_metadata = rotated
+    assert new_key != old_key
+    assert new_metadata.tenant_id == old_metadata.tenant_id == "tenant-a"
+    assert new_metadata.scopes == ("generate", "costs")
+    assert await store.get_key(old_key) is None
+    assert await store.get_key(new_key) == new_metadata
+
+
+@pytest.mark.asyncio
+async def test_rotation_rejects_unknown_or_revoked_key(store):
+    assert await store.rotate_key("sk-unknown") is None
+    raw_key, _ = await store.create_key("tenant-a")
+    await store.revoke_key(raw_key)
+    assert await store.rotate_key(raw_key) is None
+
+
+@pytest.mark.asyncio
+async def test_list_keys_is_tenant_scoped(store):
+    await store.create_key("tenant-a")
+    await store.create_key("tenant-a")
+    await store.create_key("tenant-b")
+
+    tenant_a = await store.list_keys("tenant-a")
+    tenant_b = await store.list_keys("tenant-b")
+
+    assert len(tenant_a) == 2
+    assert len(tenant_b) == 1
+    assert all(key.tenant_id == "tenant-a" for key in tenant_a)

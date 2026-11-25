@@ -188,3 +188,54 @@ class VirtualKeyStore:
                 (datetime.now(timezone.utc).isoformat(), self._hash_key(api_key)),
             )
             return cursor.rowcount > 0
+
+    async def rotate_key(
+        self,
+        api_key: str,
+        scopes: tuple[str, ...] = ("generate",),
+        expires_at: datetime | None = None,
+        rpm_limit: int = 100,
+        tpm_limit: int = 50_000,
+        budget_usd: float = 10.0,
+    ) -> tuple[str, VirtualKey] | None:
+        self._validate(scopes, rpm_limit, tpm_limit, budget_usd)
+        return await asyncio.to_thread(
+            self._rotate_sync,
+            api_key,
+            scopes,
+            expires_at,
+            rpm_limit,
+            tpm_limit,
+            budget_usd,
+        )
+
+    def _rotate_sync(self, api_key: str, *args) -> tuple[str, VirtualKey] | None:
+        with self._connect() as connection:
+            old = connection.execute(
+                "SELECT * FROM virtual_keys WHERE key_hash = ?",
+                (self._hash_key(api_key),),
+            ).fetchone()
+            if old is None:
+                return None
+            old_key = self._row_to_key(old)
+            now = datetime.now(timezone.utc)
+            if old_key.revoked_at or (old_key.expires_at and old_key.expires_at <= now):
+                return None
+            rotated = self._insert(connection, old_key.tenant_id, *args)
+            connection.execute(
+                "UPDATE virtual_keys SET revoked_at = ? WHERE key_id = ?",
+                (now.isoformat(), old_key.key_id),
+            )
+            return rotated
+
+    async def list_keys(self, tenant_id: str) -> list[VirtualKey]:
+        return await asyncio.to_thread(self._list_sync, tenant_id)
+
+    def _list_sync(self, tenant_id: str) -> list[VirtualKey]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                "SELECT * FROM virtual_keys WHERE tenant_id = ? "
+                "ORDER BY created_at DESC",
+                (tenant_id,),
+            ).fetchall()
+        return [self._row_to_key(row) for row in rows]
