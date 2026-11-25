@@ -7,6 +7,7 @@ from llm_gateway.core.openai_compat import (
     OpenAIMessage,
     completion_response,
     flatten_messages,
+    openai_sse,
     stream_chunk,
     stream_usage_chunk,
 )
@@ -81,3 +82,19 @@ def test_stream_chunks_are_accepted_by_openai_sdk():
     parsed_usage = ChatCompletionChunk.model_validate(usage_chunk)
     assert parsed_usage.choices == []
     assert parsed_usage.usage.total_tokens == 7
+
+
+@pytest.mark.asyncio
+async def test_openai_sse_frames_content_finish_usage_and_done():
+    async def events():
+        yield {"type": "content", "content": "hi"}
+        yield {"type": "usage", "prompt_tokens": 5, "completion_tokens": 2}
+
+    frames = [frame async for frame in openai_sse(events(), "gpt-4o")]
+
+    assert len(frames) == 5
+    assert "chat.completion.chunk" in frames[0]
+    assert '"content": "hi"' in frames[1]
+    assert '"finish_reason": "stop"' in frames[2]
+    assert '"total_tokens": 7' in frames[3]
+    assert frames[4] == "data: [DONE]\n\n"

@@ -1,8 +1,9 @@
 """OpenAI-compatible chat schemas and response shaping."""
 
+import json
 import time
 import uuid
-from typing import Any, Optional
+from typing import Any, AsyncIterator, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -134,3 +135,41 @@ def stream_error_chunk(request_id: str, model: str, message: str) -> dict[str, A
     chunk = stream_chunk(request_id, model)
     chunk["error"] = {"message": message, "type": "gateway_error"}
     return chunk
+
+
+async def openai_sse(
+    events: AsyncIterator[dict[str, Any]], model: str
+) -> AsyncIterator[str]:
+    """Frame gateway stream events as OpenAI-compatible Server-Sent Events."""
+    request_id = completion_id()
+    created = int(time.time())
+    role = stream_chunk(request_id, model, role=True, created=created)
+    yield f"data: {json.dumps(role)}\n\n"
+    try:
+        async for event in events:
+            if event["type"] == "content":
+                chunk = stream_chunk(
+                    request_id, model, event["content"], created=created
+                )
+            elif event["type"] == "usage":
+                finish = stream_chunk(
+                    request_id,
+                    model,
+                    finish_reason="stop",
+                    created=created,
+                )
+                yield f"data: {json.dumps(finish)}\n\n"
+                chunk = stream_usage_chunk(
+                    request_id,
+                    model,
+                    event["prompt_tokens"],
+                    event["completion_tokens"],
+                    created=created,
+                )
+            else:
+                chunk = stream_error_chunk(request_id, model, event["message"])
+            yield f"data: {json.dumps(chunk)}\n\n"
+    except Exception as exc:
+        chunk = stream_error_chunk(request_id, model, str(exc))
+        yield f"data: {json.dumps(chunk)}\n\n"
+    yield "data: [DONE]\n\n"
