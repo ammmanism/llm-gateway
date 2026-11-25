@@ -1,3 +1,3 @@
-from .client import Client, AsyncClient
+from .client import AsyncClient, Client
 
 __all__ = ["Client", "AsyncClient"]

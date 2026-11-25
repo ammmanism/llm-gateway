@@ -3,6 +3,7 @@
 Benchmark exact and semantic cache hit rates and cost savings.
 Uses mock LLM compute with a fixed cost per query.
 """
+
 import json
 import random
 import time
@@ -70,8 +71,10 @@ PARAPHRASE_PAIRS = [
     ("how to reduce stress", "natural ways to relieve stress"),
 ]
 
+
 def load_queries():
     seen = set()
+
     def unique(q):
         if q not in seen:
             seen.add(q)
@@ -89,48 +92,57 @@ def load_queries():
     random.shuffle(queries)
     return queries[:NUM_QUERIES]
 
+
 def compute_fn(query):
     time.sleep(0.01)
     return {"response": f"Response to {query}"}
 
+
 class NoCache:
     def get_or_compute(self, query, compute_fn):
-        return type('', (), {'was_cached': False, 'estimated_cost': 0})()
+        return type("", (), {"was_cached": False, "estimated_cost": 0})()
+
 
 class ExactCache:
     def __init__(self):
         self.cache = {}
+
     def get_or_compute(self, query, compute_fn):
         if query in self.cache:
-            return type('', (), {'was_cached': True, 'estimated_cost': 0})()
+            return type("", (), {"was_cached": True, "estimated_cost": 0})()
         self.cache[query] = compute_fn(query)
-        return type('', (), {'was_cached': False, 'estimated_cost': 0})()
+        return type("", (), {"was_cached": False, "estimated_cost": 0})()
+
 
 class SemanticCache:
     def __init__(self, threshold=0.92):
         self.cache = {}
         self.threshold = threshold
+
     def get_or_compute(self, query, compute_fn):
         for cached_query in self.cache:
             similarity = self._cosine_similarity(query, cached_query)
             if similarity >= self.threshold:
-                return type('', (), {'was_cached': True, 'estimated_cost': 0})()
+                return type("", (), {"was_cached": True, "estimated_cost": 0})()
         self.cache[query] = compute_fn(query)
-        return type('', (), {'was_cached': False, 'estimated_cost': 0})()
+        return type("", (), {"was_cached": False, "estimated_cost": 0})()
+
     def _cosine_similarity(self, a, b):
         tokens_a = a.lower().split()
         tokens_b = b.lower().split()
         if not tokens_a or not tokens_b:
             return 0.0
         from collections import Counter
+
         vec_a = Counter(tokens_a)
         vec_b = Counter(tokens_b)
         dot = sum(vec_a[k] * vec_b.get(k, 0) for k in vec_a)
-        norm_a = sum(v*v for v in vec_a.values()) ** 0.5
-        norm_b = sum(v*v for v in vec_b.values()) ** 0.5
+        norm_a = sum(v * v for v in vec_a.values()) ** 0.5
+        norm_b = sum(v * v for v in vec_b.values()) ** 0.5
         if norm_a == 0 or norm_b == 0:
             return 0.0
         return dot / (norm_a * norm_b)
+
 
 def run_benchmark(queries, cache):
     hits = 0
@@ -148,6 +160,7 @@ def run_benchmark(queries, cache):
         "queries": len(queries),
         "elapsed_seconds": round(elapsed, 2),
     }
+
 
 if __name__ == "__main__":
     queries = load_queries()

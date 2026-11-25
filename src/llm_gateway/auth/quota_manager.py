@@ -1,16 +1,18 @@
 import asyncio
 import time
-from typing import Dict, Any
+from typing import Any, Dict
 
 from llm_gateway.observability.webhooks import webhook_manager
+
 
 class QuotaManager:
     """
     Manages token quotas for multi-tenant isolation.
-    
-    Tracks token usage per tenant and enforces daily limits. 
+
+    Tracks token usage per tenant and enforces daily limits.
     Resets usage automatically after the 24-hour window expires.
     """
+
     def __init__(self, default_limit: int = 100000):
         # tenant_id -> {tokens_used: int, limit: int, reset_time: float}
         self._quotas: Dict[str, Any] = {}
@@ -21,16 +23,24 @@ class QuotaManager:
         Verify if a tenant has enough quota remaining for a request.
         """
         await self._reset_if_needed(tenant_id)
-        quota = self._quotas.get(tenant_id, {"tokens_used": 0, "limit": self.default_limit})
+        quota = self._quotas.get(
+            tenant_id, {"tokens_used": 0, "limit": self.default_limit}
+        )
         allowed = (quota["tokens_used"] + tokens) <= quota["limit"]
-        
+
         if not allowed:
             # Fire webhook asynchronously
-            asyncio.create_task(webhook_manager.fire_event(
-                "quota_exceeded", 
-                {"tenant_id": tenant_id, "limit": quota["limit"], "attempted": tokens}
-            ))
-            
+            asyncio.create_task(
+                webhook_manager.fire_event(
+                    "quota_exceeded",
+                    {
+                        "tenant_id": tenant_id,
+                        "limit": quota["limit"],
+                        "attempted": tokens,
+                    },
+                )
+            )
+
         return allowed
 
     async def consume(self, tenant_id: str, tokens: int) -> None:
@@ -40,9 +50,9 @@ class QuotaManager:
         await self._reset_if_needed(tenant_id)
         if tenant_id not in self._quotas:
             self._quotas[tenant_id] = {
-                "tokens_used": 0, 
-                "limit": self.default_limit, 
-                "reset_time": time.time() + 86400
+                "tokens_used": 0,
+                "limit": self.default_limit,
+                "reset_time": time.time() + 86400,
             }
         self._quotas[tenant_id]["tokens_used"] += tokens
 

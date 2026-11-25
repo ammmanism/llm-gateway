@@ -45,6 +45,13 @@ htmlcov/
 benchmarks/results/*.json
 data/evidence/*.sqlite3
 data/cost_ledger.sqlite3
+data/evidence/coverage.json
+.coverage
+htmlcov/
+coverage.xml
+
+# Local observability stack data
+deploy/observability/otel-data/
 
 # Node
 node_modules/

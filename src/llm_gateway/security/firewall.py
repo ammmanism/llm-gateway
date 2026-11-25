@@ -4,10 +4,11 @@ from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+
 class SentinelFirewall:
     """
     Provides input validation and sanitization for LLM prompts to ensure security.
-    
+
     The firewall identifies and blocks common attack vectors, including:
     - Prompt Injection: Attempts to override system instructions.
     - PII Leakage: Accidental submission of sensitive personal data (SSN, Email, etc.).
@@ -42,7 +43,9 @@ class SentinelFirewall:
     MAX_PROMPT_LINES = 500
 
     @classmethod
-    def validate(cls, prompt: str, tenant_id: str = "default") -> Tuple[bool, Optional[str]]:
+    def validate(
+        cls, prompt: str, tenant_id: str = "default"
+    ) -> Tuple[bool, Optional[str]]:
         """
         Validate a prompt for security and policy compliance.
 
@@ -58,29 +61,39 @@ class SentinelFirewall:
 
         # 1. Length & Size validation
         if len(prompt) > cls.MAX_PROMPT_LENGTH:
-            return False, f"Prompt exceeds maximum length of {cls.MAX_PROMPT_LENGTH} characters"
+            return (
+                False,
+                f"Prompt exceeds maximum length of {cls.MAX_PROMPT_LENGTH} characters",
+            )
 
-        if prompt.count('\n') > cls.MAX_PROMPT_LINES:
+        if prompt.count("\n") > cls.MAX_PROMPT_LINES:
             return False, f"Prompt exceeds maximum of {cls.MAX_PROMPT_LINES} lines"
 
         # 2. PII detection (Privacy enforcement)
         for pii_type, pattern in cls.PII_PATTERNS.items():
             if re.search(pattern, prompt, re.IGNORECASE):
-                logger.warning(f"PII detected in prompt from tenant '{tenant_id}': {pii_type}")
+                logger.warning(
+                    f"PII detected in prompt from tenant '{tenant_id}': {pii_type}"
+                )
                 return False, f"Security violation: PII detected ({pii_type})"
 
         # 3. Injection detection (Model safety)
         for pattern in cls.INJECTION_PATTERNS:
             if re.search(pattern, prompt, re.IGNORECASE):
-                logger.warning(f"Injection attempt detected from tenant '{tenant_id}': {pattern}")
-                return False, "Security violation: Prompt contains suspicious instructions"
+                logger.warning(
+                    f"Injection attempt detected from tenant '{tenant_id}': {pattern}"
+                )
+                return (
+                    False,
+                    "Security violation: Prompt contains suspicious instructions",
+                )
 
         return True, None
 
     @classmethod
     def sanitize(cls, prompt: str) -> str:
         """
-        Sanitize a prompt by removing potentially harmful characters or normalizing format.
+        Sanitize a prompt by removing harmful characters or normalizing format.
 
         Args:
             prompt: The raw input string.
@@ -88,10 +101,10 @@ class SentinelFirewall:
         Returns:
             The sanitized string.
         """
-        # Remove control characters except newline and tab to prevent terminal-escape attacks
-        prompt = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', '', prompt)
+        # Remove control characters except newline/tab to block terminal escapes.
+        prompt = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", prompt)
 
         # Normalize whitespace (collapsing multiple spaces)
-        prompt = re.sub(r'\s+', ' ', prompt).strip()
+        prompt = re.sub(r"\s+", " ", prompt).strip()
 
         return prompt

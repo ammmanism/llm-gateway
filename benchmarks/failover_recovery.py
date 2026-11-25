@@ -3,6 +3,7 @@
 Simulate a provider outage and measure recovery time.
 Uses the real CircuitBreaker from llm_gateway.reliability.circuit_breaker.
 """
+
 import json
 import threading
 import time
@@ -13,6 +14,7 @@ from llm_gateway.reliability.circuit_breaker import CircuitBreaker
 
 class FailingProvider:
     """Simulates a provider that fails N times then recovers."""
+
     def __init__(self, name, fail_after=0):
         self.name = name
         self.call_count = 0

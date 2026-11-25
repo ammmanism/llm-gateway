@@ -34,16 +34,20 @@ __all__ = [
 # The actual implementations are in prometheus.py
 # This module exists for backward compatibility with existing imports
 
+
 def record_cost(tenant_id: str, model: str, provider: str, cost_usd: float):
     """Record cost for a request (backward compatibility wrapper)."""
     record_cost_metric(tenant_id, model, provider, cost_usd)
+
 
 def record_cache_hit(cache_type: str, is_hit: bool):
     """Update cache hit ratio metrics (backward compatibility wrapper)."""
     record_cache_hit_metric(cache_type, is_hit)
 
+
 def update_active_streams(tenant_id: str, delta: int):
     """Update active streams count (backward compatibility wrapper)."""
     update_active_streams_metric(tenant_id, delta)
+
 
 # The other functions are imported directly from prometheus.py

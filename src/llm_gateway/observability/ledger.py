@@ -1,7 +1,7 @@
 import json
 import logging
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Any, Dict, Optional
 
 # Configure audit logger separately
 audit_logger = logging.getLogger("audit")
@@ -11,8 +11,9 @@ audit_logger.setLevel(logging.INFO)
 audit_logger.propagate = False
 if not audit_logger.handlers:
     handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('%(message)s'))
+    handler.setFormatter(logging.Formatter("%(message)s"))
     audit_logger.addHandler(handler)
+
 
 class AuditLogger:
     """Structured audit logging for compliance."""

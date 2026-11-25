@@ -109,13 +109,35 @@ component that was not on the critical path.
 ## 14. Honest gaps are more credible than a perfect scorecard
 
 The README no longer claims 42% coverage, a 96% cost reduction, or "7 pass / 2
-fail". It states the measured overhead, the measured cache trade-off, the
-measured recovery times, the real test count, and links `GAP_ANALYSIS.md` for
-what is missing (Grafana screenshot, trace export, Redis load tests). Reviewers
-trust a scorecard that admits its holes.
+fail". It states the measured overhead, cache trade-off, recovery times, test
+count, and **48.42% branch coverage**. Closed gaps (lint, OTLP export, Redis
+consistency) have committed evidence; open gaps (distributed semantic cache,
+auth depth, coverage target) remain explicit.
 
 ## 15. Keep lint debt from hiding new debt
 
 `ruff check .` was already red on legacy long lines. Running focused
 `ruff check` on each new file kept the new code clean while the legacy cleanup
-stays a separate, reviewable task.
+stays a separate, reviewable task. The cleanup eventually applied Ruff's safe
+fixes, excluded the intentionally dead `_superseded/` archive, and wrapped the
+remaining long lines. Full lint and format checks are now green.
+
+## 16. Redis code needs a real Redis test
+
+The TPM Lua script looked correct until two worker processes ran against Redis.
+It tried to sum members like `"1:timestamp.random"` as numbers, producing
+`attempt to perform arithmetic on a nil value`. The fix parses the token-count
+prefix. A mocked Redis test would not have caught the script semantics.
+
+## 17. Global async clients do not survive per-test event loops
+
+With `REDIS_URL` set, HTTP tests reused global Redis clients across pytest's
+per-function loops and failed with `Event loop is closed`. Production has one
+long-lived loop; tests do not. HTTP behavior tests now inject fresh in-memory
+components, while dedicated Redis tests exercise the distributed paths.
+
+## 18. Statement coverage and branch coverage tell different stories
+
+The same suite reported 53% statement coverage but 48.42% once branches were
+included. Both are real; the README now quotes the stricter branch number and
+links the per-module CSV.

@@ -13,7 +13,14 @@ class FakeClock:
         return self.now
 
 
-def build_cache(threshold: float = 0.80, clock: FakeClock | None = None) -> TwoTierCache:
+@pytest.fixture(autouse=True)
+def use_local_cache(monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
+
+
+def build_cache(
+    threshold: float = 0.80, clock: FakeClock | None = None
+) -> TwoTierCache:
     clock = clock or FakeClock()
     return TwoTierCache(
         exact_cache=CacheManager(clock=clock),
@@ -45,7 +52,9 @@ async def test_exact_tier_hit():
 @pytest.mark.asyncio
 async def test_semantic_tier_hit_for_paraphrase():
     cache = build_cache(threshold=0.80)
-    await cache.set("Explain quantum computing", payload("qubits"), "tenant-a", "gpt-4o")
+    await cache.set(
+        "Explain quantum computing", payload("qubits"), "tenant-a", "gpt-4o"
+    )
 
     hit = await cache.get("Explain quantum computing.", "tenant-a", "gpt-4o")
 
@@ -71,7 +80,9 @@ async def test_tenant_and_model_partitioning():
     await cache.set("Explain quantum computing", payload(), "tenant-a", "gpt-4o")
 
     assert await cache.get("Explain quantum computing", "tenant-b", "gpt-4o") is None
-    assert await cache.get("Explain quantum computing", "tenant-a", "gpt-4o-mini") is None
+    assert (
+        await cache.get("Explain quantum computing", "tenant-a", "gpt-4o-mini") is None
+    )
 
 
 @pytest.mark.asyncio

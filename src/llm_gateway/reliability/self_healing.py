@@ -1,17 +1,19 @@
 import asyncio
 import logging
-from typing import Dict, Set, Callable, Awaitable
 from datetime import datetime, timedelta
+from typing import Awaitable, Callable, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
 
 class SelfHealingManager:
     """
     Autonomous recovery system for failed LLM providers.
-    
-    Monitors 'quarantined' providers and orchestrates health probes 
+
+    Monitors 'quarantined' providers and orchestrates health probes
     to re-integrate them into the active pool once stable.
     """
+
     def __init__(self, recovery_timeout_seconds: int = 300):
         self.recovery_timeout = recovery_timeout_seconds
         self.quarantine: Dict[str, datetime] = {}
@@ -22,7 +24,9 @@ class SelfHealingManager:
     def quarantine_provider(self, provider_name: str):
         """Place a provider in quarantine after repeated failures."""
         self.quarantine[provider_name] = datetime.now()
-        logger.warning(f"Provider {provider_name} quarantined for {self.recovery_timeout}s")
+        logger.warning(
+            f"Provider {provider_name} quarantined for {self.recovery_timeout}s"
+        )
 
     async def start(self, health_check_callback: Callable[[str], Awaitable[bool]]):
         """Start the background self-healing loop."""
@@ -44,7 +48,7 @@ class SelfHealingManager:
     async def _loop(self):
         while self._running:
             try:
-                await asyncio.sleep(60) # Check every minute
+                await asyncio.sleep(60)  # Check every minute
                 now = datetime.now()
                 to_recover = []
 
@@ -57,11 +61,16 @@ class SelfHealingManager:
                     if self.health_check_callback:
                         is_healthy = await self.health_check_callback(name)
                         if is_healthy:
-                            logger.info(f"Provider {name} successfully recovered and re-integrated.")
+                            logger.info(
+                                "Provider %s successfully recovered and re-integrated.",
+                                name,
+                            )
                             del self.quarantine[name]
                         else:
                             # Extend quarantine
                             self.quarantine[name] = now
-                            logger.info(f"Recovery failed for {name}. Quarantine extended.")
+                            logger.info(
+                                f"Recovery failed for {name}. Quarantine extended."
+                            )
             except Exception as e:
                 logger.error(f"Error in SelfHealing loop: {e}")

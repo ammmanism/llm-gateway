@@ -34,6 +34,8 @@ BUDGET_REDIS_TTL_SECONDS=2592000
 
 If `REDIS_URL` is set, spend is tracked in Redis with `INCRBYFLOAT`. Without
 Redis, the enforcer uses in-memory tracking for local development and tests.
+Budget checks and increments are separate operations, so concurrent requests
+can still race between check and commit; atomic reservation is future work.
 
 ## Request Lifecycle
 

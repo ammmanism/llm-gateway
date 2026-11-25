@@ -140,6 +140,7 @@ class CostLedger:
             self._worker.cancel()
             await asyncio.gather(self._worker, return_exceptions=True)
             self._worker = None
+
     async def summarize(
         self,
         tenant_id: str,
@@ -179,9 +180,7 @@ class CostLedger:
             "request_count": len(entries),
             "cache_hit_count": sum(entry["cache_hit"] for entry in entries),
             "prompt_tokens": sum(entry["prompt_tokens"] for entry in entries),
-            "completion_tokens": sum(
-                entry["completion_tokens"] for entry in entries
-            ),
+            "completion_tokens": sum(entry["completion_tokens"] for entry in entries),
             "total_cost_usd": sum(entry["cost_usd"] for entry in entries),
             "by_model": by_model,
             "entries": entries,

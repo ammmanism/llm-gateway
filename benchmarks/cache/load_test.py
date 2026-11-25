@@ -14,11 +14,18 @@ class NeurocacheUser(HttpUser):
             headers={"Authorization": f"Bearer {self.api_key}"},
             json={
                 "model": "gpt-4o-mini",
-                "messages": [{"role": "user", "content": "Explain semantic caching in one paragraph"}],
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Explain semantic caching in one paragraph",
+                    }
+                ],
                 "max_tokens": 120,
             },
         )
 
     @task(2)
     def cache_stats(self):
-        self.client.get("/v1/cache/stats", headers={"Authorization": f"Bearer {self.api_key}"})
+        self.client.get(
+            "/v1/cache/stats", headers={"Authorization": f"Bearer {self.api_key}"}
+        )

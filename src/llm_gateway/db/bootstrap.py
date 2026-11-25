@@ -18,7 +18,9 @@ async def bootstrap_schema() -> None:
     conn = await asyncpg.connect(settings.DATABASE_URL)
     try:
         await conn.execute(SCHEMA_SQL)
-        logger.info("Database extensions verified. Run `alembic upgrade head` for tables.")
+        logger.info(
+            "Database extensions verified. Run `alembic upgrade head` for tables."
+        )
     finally:
         await conn.close()
 

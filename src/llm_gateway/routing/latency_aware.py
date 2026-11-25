@@ -45,18 +45,24 @@ class LatencyAwareRouter(BaseRouter):
             config = LatencyConfig(**data)
             for model in config.models:
                 if model.latency_ms is None:
-                    logger.warning("Skipping %s in latency router: latency_ms missing", model.name)
+                    logger.warning(
+                        "Skipping %s in latency router: latency_ms missing", model.name
+                    )
                     continue
                 self.model_latency[model.name] = model.latency_ms
 
             if not self.model_latency:
                 raise ValueError("No models with latency_ms configured")
 
-            logger.info("Loaded %s models into LatencyAwareRouter", len(self.model_latency))
+            logger.info(
+                "Loaded %s models into LatencyAwareRouter", len(self.model_latency)
+            )
 
         except Exception as e:
             logger.error(
-                "Failed to load LatencyAwareRouter config: %s. Using resilient defaults.", e
+                "Failed to load LatencyAwareRouter config: %s. "
+                "Using resilient defaults.",
+                e,
             )
             self.model_latency = {
                 "llama-3-8b": 150,
@@ -78,13 +84,15 @@ class LatencyAwareRouter(BaseRouter):
         candidates = dict(self.model_latency)
         if allowed_models:
             allowed = set(allowed_models)
-            candidates = {name: latency for name, latency in candidates.items() if name in allowed}
+            candidates = {
+                name: latency for name, latency in candidates.items() if name in allowed
+            }
 
         if not candidates:
             logger.warning(
-                "Latency filters removed every model; falling back to fastest configured model"
+                "Latency filters removed every model; "
+                "falling back to fastest configured model"
             )
             candidates = dict(self.model_latency)
 
         return sorted(candidates.keys(), key=lambda model: (candidates[model], model))
-

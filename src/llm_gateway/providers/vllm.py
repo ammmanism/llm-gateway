@@ -10,17 +10,21 @@ from llm_gateway.reliability.circuit_breaker import CircuitBreaker, CircuitOpenE
 
 logger = logging.getLogger("cost_aware_llm.providers.vllm")
 
+
 class VLLMProvider(BaseProvider):
     """
     Provider implementation for locally hosted vLLM inference servers.
-    
+
     This provider uses the OpenAI-compatible API exposed by vLLM to route requests
     to local GPUs for cost-efficient and high-throughput inference.
     """
+
     def __init__(self, base_url: str = "http://localhost:8000/v1", timeout: int = 60):
         self.base_url = base_url
         self.timeout = timeout
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="vllm")
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=3, recovery_timeout=30, name="vllm"
+        )
 
     async def generate(self, prompt: str, **kwargs: Any) -> Dict[str, Any]:
         """
@@ -37,7 +41,7 @@ class VLLMProvider(BaseProvider):
         payload = {
             "model": kwargs.get("model", "local-model"),
             "messages": [{"role": "user", "content": prompt}],
-            "stream": False
+            "stream": False,
         }
 
         if "temperature" in kwargs:
@@ -48,8 +52,7 @@ class VLLMProvider(BaseProvider):
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
                 response = await client.post(
-                    f"{self.base_url}/chat/completions",
-                    json=payload
+                    f"{self.base_url}/chat/completions", json=payload
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -64,8 +67,8 @@ class VLLMProvider(BaseProvider):
                     "latency_ms": latency,
                     "tokens": {
                         "prompt": data.get("usage", {}).get("prompt_tokens", 0),
-                        "completion": data.get("usage", {}).get("completion_tokens", 0)
-                    }
+                        "completion": data.get("usage", {}).get("completion_tokens", 0),
+                    },
                 }
             except Exception as e:
                 self.circuit_breaker.record_failure()
@@ -85,7 +88,7 @@ class VLLMProvider(BaseProvider):
         payload = {
             "model": kwargs.get("model", "local-model"),
             "messages": [{"role": "user", "content": prompt}],
-            "stream": True
+            "stream": True,
         }
 
         if "temperature" in kwargs:
@@ -93,7 +96,9 @@ class VLLMProvider(BaseProvider):
 
         async with httpx.AsyncClient(timeout=self.timeout) as client:
             try:
-                async with client.stream("POST", f"{self.base_url}/chat/completions", json=payload) as response:
+                async with client.stream(
+                    "POST", f"{self.base_url}/chat/completions", json=payload
+                ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():
                         if line.startswith("data: ") and line != "data: [DONE]":

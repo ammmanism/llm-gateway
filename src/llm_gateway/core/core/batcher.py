@@ -4,8 +4,10 @@ from typing import Callable, Dict
 
 logger = logging.getLogger(__name__)
 
+
 class NexusBatcher:
     """Batcher for LLM requests to optimize throughput."""
+
     def __init__(self, batch_size: int = 5, wait_time_ms: int = 100):
         self.batch_size = batch_size
         self.wait_time_ms = wait_time_ms
@@ -29,5 +31,5 @@ class NexusBatcher:
             logger.error(f"Batcher execution failed: {e}")
             return {"status": "error", "message": str(e)}
 
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
 
+# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern

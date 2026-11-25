@@ -10,16 +10,20 @@ from llm_gateway.reliability.retry import retry
 
 logger = logging.getLogger(__name__)
 
+
 class TogetherProvider(BaseProvider):
     """
     Provider implementation for Together AI's Chat Completion API.
-    
-    Interfaces with Llama-3, Mistral, and other open-source models 
+
+    Interfaces with Llama-3, Mistral, and other open-source models
     hosted on Together's infrastructure.
     """
+
     def __init__(self):
         self.api_key = os.environ.get("TOGETHER_API_KEY")
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="together")
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=3, recovery_timeout=30, name="together"
+        )
         self.default_model = "meta-llama/Llama-3-8b-chat-hf"
 
     @retry(max_retries=2, backoff_factor=1.0)
@@ -45,27 +49,28 @@ class TogetherProvider(BaseProvider):
                     "model": model,
                     "output": output,
                     "status": "success",
-                    "mock": True
+                    "mock": True,
                 }
 
             import httpx
+
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             payload = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": kwargs.get("max_tokens", 1024),
                 "temperature": kwargs.get("temperature", 0.7),
-                "stream": False
+                "stream": False,
             }
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     "https://api.together.xyz/v1/chat/completions",
                     json=payload,
-                    headers=headers
+                    headers=headers,
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -77,7 +82,7 @@ class TogetherProvider(BaseProvider):
                 "model": model,
                 "output": output,
                 "usage": data.get("usage", {}),
-                "status": "success"
+                "status": "success",
             }
         except Exception as e:
             self.circuit_breaker.record_failure()
@@ -104,16 +109,17 @@ class TogetherProvider(BaseProvider):
                 return
 
             import httpx
+
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             payload = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": kwargs.get("max_tokens", 1024),
                 "temperature": kwargs.get("temperature", 0.7),
-                "stream": True
+                "stream": True,
             }
 
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -121,7 +127,7 @@ class TogetherProvider(BaseProvider):
                     "POST",
                     "https://api.together.xyz/v1/chat/completions",
                     json=payload,
-                    headers=headers
+                    headers=headers,
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():

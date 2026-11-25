@@ -14,14 +14,23 @@ from opentelemetry.trace import Status, StatusCode
 
 logger = logging.getLogger(__name__)
 
+
 def init_tracing(app=None, service_name: str = "llm-gateway"):
     """Initialize OpenTelemetry with OTLP exporter."""
-    otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+    if os.environ.get("OTEL_SDK_DISABLED", "").lower() in {"1", "true", "yes"}:
+        logger.info("OpenTelemetry disabled by OTEL_SDK_DISABLED")
+        return None
 
-    resource = Resource(attributes={
-        SERVICE_NAME: service_name,
-        "deployment.environment": os.environ.get("ENVIRONMENT", "development")
-    })
+    otlp_endpoint = os.environ.get(
+        "OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"
+    )
+
+    resource = Resource(
+        attributes={
+            SERVICE_NAME: service_name,
+            "deployment.environment": os.environ.get("ENVIRONMENT", "development"),
+        }
+    )
 
     provider = TracerProvider(resource=resource)
     try:
@@ -41,8 +50,10 @@ def init_tracing(app=None, service_name: str = "llm-gateway"):
     logger.info(f"OpenTelemetry initialized with OTLP endpoint: {otlp_endpoint}")
     return provider
 
+
 def trace_span(name: str, attributes: dict = None):
     """Decorator to create a span around an async function."""
+
     def decorator(func):
         @functools.wraps(func)
         async def wrapper(*args, **kwargs):
@@ -58,8 +69,11 @@ def trace_span(name: str, attributes: dict = None):
                     span.set_status(Status(StatusCode.ERROR, str(e)))
                     span.record_exception(e)
                     raise
+
         return wrapper
+
     return decorator
+
 
 # Keep original @trace stub for backward compatibility, now using real spans
 def trace(func):

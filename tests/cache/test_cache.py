@@ -9,12 +9,15 @@ def test_ttl_calculation():
     assert ttl_dt > datetime.utcnow()
     assert get_ttl_seconds(tenant_ttl_hours=10) == 36000
 
+
 def test_drift_detector():
     detector = DriftDetector(threshold=0.7)
 
     # Very old, inconsistent, volatile query should drift
     created_at = datetime.utcnow() - timedelta(hours=20)
-    score = detector.compute_drift_score(created_at, 24, "What is the current stock price of Apple?", 0.1)
+    score = detector.compute_drift_score(
+        created_at, 24, "What is the current stock price of Apple?", 0.1
+    )
 
     assert score > 0.7
     assert detector.should_invalidate(score)

@@ -1,17 +1,20 @@
 import asyncio
 import logging
-from typing import Dict
 from enum import Enum
+from typing import Dict
 
 logger = logging.getLogger(__name__)
+
 
 class ProviderStatus(Enum):
     HEALTHY = "healthy"
     UNHEALTHY = "unhealthy"
     DEGRADED = "degraded"
 
+
 class HeartbeatMonitor:
     """Monitor for LLM provider health."""
+
     def __init__(self, check_interval: int = 30):
         self.check_interval = check_interval
         self.status: Dict[str, ProviderStatus] = {}
@@ -40,5 +43,5 @@ class HeartbeatMonitor:
             await asyncio.sleep(self.check_interval)
             logger.debug("Running provider health checks")
 
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
 
+# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern

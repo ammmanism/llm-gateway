@@ -12,6 +12,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RateLimitResult:
     """Result of a rate limit check."""
+
     allowed: bool
     rpm_remaining: int
     tpm_remaining: int
@@ -23,8 +24,9 @@ class RateLimitResult:
 @dataclass
 class RateLimitConfig:
     """Configuration for dual-metric rate limiting."""
-    rpm_limit: int = 100      # Requests per minute
-    tpm_limit: int = 50000    # Tokens per minute
+
+    rpm_limit: int = 100  # Requests per minute
+    tpm_limit: int = 50000  # Tokens per minute
     window_seconds: int = 60  # Sliding window size
 
 
@@ -76,7 +78,8 @@ redis.call('ZREMRANGEBYSCORE', key, '-inf', cutoff)
 local entries = redis.call('ZRANGE', key, 0, -1, 'WITHSCORES')
 local current_tokens = 0
 for i = 1, #entries, 2 do
-    current_tokens = current_tokens + tonumber(entries[i])
+    local token_count = tonumber(string.match(entries[i], '^(%d+):')) or 0
+    current_tokens = current_tokens + token_count
 end
 
 if current_tokens + requested <= limit then
@@ -100,11 +103,12 @@ end
 
 class RateLimiter:
     """
-    Dual-metric Rate Limiter tracking both RPM (Requests Per Minute) and TPM (Tokens Per Minute).
-    
+    Dual-metric Rate Limiter tracking both RPM (Requests Per Minute)
+    and TPM (Tokens Per Minute).
+
     Uses Redis sorted sets for atomic sliding window rate limiting.
     Falls back to in-memory implementation for local development.
-    
+
     Features:
     - Independent RPM and TPM limits per tenant
     - Atomic check-and-reserve for both metrics
@@ -144,7 +148,9 @@ class RateLimiter:
                 self._rpm_sha = await self._redis.script_load(RPM_LUA_SCRIPT)
                 self._tpm_sha = await self._redis.script_load(TPM_LUA_SCRIPT)
                 self._connected = True
-                logger.info("RateLimiter connected to Redis with dual-metric scripts loaded")
+                logger.info(
+                    "RateLimiter connected to Redis with dual-metric scripts loaded"
+                )
             except Exception as e:
                 logger.error(f"RateLimiter failed to connect to Redis: {e}")
                 self.redis_url = None
@@ -162,11 +168,12 @@ class RateLimiter:
     ) -> RateLimitResult:
         """
         Check if request is allowed and reserve tokens atomically.
-        
+
         Args:
             tenant_id: Tenant identifier
-            estimated_tokens: Estimated token count for this request (prompt + max_tokens)
-            
+            estimated_tokens: Estimated token count for this request
+                (prompt + max_tokens)
+
         Returns:
             RateLimitResult with allowance and remaining quotas
         """
@@ -191,12 +198,16 @@ class RateLimiter:
 
         # Execute both checks
         rpm_result = await self._redis.evalsha(
-            self._rpm_sha, 1, rpm_key,
-            self.config.rpm_limit, window, now
+            self._rpm_sha, 1, rpm_key, self.config.rpm_limit, window, now
         )
         tpm_result = await self._redis.evalsha(
-            self._tpm_sha, 1, tpm_key,
-            self.config.tpm_limit, window, now, estimated_tokens
+            self._tpm_sha,
+            1,
+            tpm_key,
+            self.config.tpm_limit,
+            window,
+            now,
+            estimated_tokens,
         )
 
         rpm_allowed = bool(rpm_result[0])
@@ -241,7 +252,9 @@ class RateLimiter:
         ]
         rpm_current = len(self._rpm_requests[tenant_id])
         rpm_allowed = rpm_current < self.config.rpm_limit
-        rpm_remaining = max(0, self.config.rpm_limit - rpm_current - (1 if rpm_allowed else 0))
+        rpm_remaining = max(
+            0, self.config.rpm_limit - rpm_current - (1 if rpm_allowed else 0)
+        )
 
         # Clean expired TPM entries
         if tenant_id not in self._tpm_tokens:
@@ -251,7 +264,12 @@ class RateLimiter:
         ]
         tpm_current = sum(tok for _, tok in self._tpm_tokens[tenant_id])
         tpm_allowed = (tpm_current + estimated_tokens) <= self.config.tpm_limit
-        tpm_remaining = max(0, self.config.tpm_limit - tpm_current - (estimated_tokens if tpm_allowed else 0))
+        tpm_remaining = max(
+            0,
+            self.config.tpm_limit
+            - tpm_current
+            - (estimated_tokens if tpm_allowed else 0),
+        )
 
         # Calculate retry-after times
         rpm_retry = 0.0
@@ -293,7 +311,7 @@ class RateLimiter:
     ) -> None:
         """
         Reconcile token usage after actual usage is known.
-        
+
         If actual > estimated: reserve additional tokens
         If actual < estimated: release excess reserved tokens
         """
@@ -313,23 +331,34 @@ class RateLimiter:
                 member = f"{diff}:{now}.{hash(str(now))}"
                 await self._redis.zadd(key, {member: now})
                 await self._redis.expire(key, self.config.window_seconds * 2)
-            logger.debug(f"Token reconciliation for {tenant_id}: estimated={estimated_tokens}, actual={actual_tokens}, diff={diff}")
+            logger.debug(
+                "Token reconciliation for %s: estimated=%s, actual=%s, diff=%s",
+                tenant_id,
+                estimated_tokens,
+                actual_tokens,
+                diff,
+            )
         else:
             # In-memory: adjust the last entry
             if tenant_id in self._tpm_tokens and self._tpm_tokens[tenant_id]:
                 last_ts, last_tok = self._tpm_tokens[tenant_id][-1]
                 self._tpm_tokens[tenant_id][-1] = (last_ts, actual_tokens)
             diff = actual_tokens - estimated_tokens
-            logger.debug(f"Token reconciliation for {tenant_id}: estimated={estimated_tokens}, actual={actual_tokens}, diff={diff}")
+            logger.debug(
+                "Token reconciliation for %s: estimated=%s, actual=%s, diff=%s",
+                tenant_id,
+                estimated_tokens,
+                actual_tokens,
+                diff,
+            )
 
     async def release_reservation(
         self,
         tenant_id: str,
         estimated_tokens: int,
     ) -> None:
-        """Release a token reservation (e.g., on request failure before provider call)."""
+        """Release a token reservation after a pre-provider failure."""
         await self._ensure_redis_connected()
-        now = time.time()
 
         if self._redis:
             # Remove one RPM entry and estimated TPM entry
@@ -375,6 +404,7 @@ class RateLimiter:
 # Backward compatibility alias
 class TokenBucket:
     """Legacy token bucket for backward compatibility."""
+
     def __init__(self, redis_client, capacity: int, refill_rate: float):
         self.redis = redis_client
         self.capacity = capacity

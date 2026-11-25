@@ -57,12 +57,14 @@ def main() -> None:
         threshold=0.95,
     )
 
-    with patch.object(server, "cost_ledger", ledger), patch.object(
-        server, "two_tier_cache", cache
-    ), patch.object(
-        server.ProviderFactory,
-        "get_provider_for_model",
-        staticmethod(lambda model: FakeProvider()),
+    with (
+        patch.object(server, "cost_ledger", ledger),
+        patch.object(server, "two_tier_cache", cache),
+        patch.object(
+            server.ProviderFactory,
+            "get_provider_for_model",
+            staticmethod(lambda model: FakeProvider()),
+        ),
     ):
         with TestClient(server.app) as client:
             for model, prompt, live_data in PROMPTS:

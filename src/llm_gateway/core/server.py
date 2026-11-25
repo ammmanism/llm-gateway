@@ -70,8 +70,7 @@ from llm_gateway.utils.usage import extract_token_usage
 
 # Configure logging
 logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
 
@@ -112,6 +111,7 @@ async def lifespan(app: FastAPI):
     except Exception as exc:
         logger.warning("Cost ledger shutdown failed: %s", exc)
     logger.info("Gateway shutdown")
+
 
 app = FastAPI(title="LLM Gateway", version="6.0.0", lifespan=lifespan)
 
@@ -186,7 +186,9 @@ def build_cache_key(
 async def health_check():
     return {
         "status": "healthy",
-        "providers": {name: status.value for name, status in health_checker.status.items()},
+        "providers": {
+            name: status.value for name, status in health_checker.status.items()
+        },
         "chaos": chaos.get_mode(),
     }
 
@@ -263,12 +265,16 @@ async def generate(request: GenerateRequest, req: Request):
     prompt_text = request.prompt
     if request.template_id:
         try:
-            prompt_text = template_manager.render(request.template_id, request.variables or {})
+            prompt_text = template_manager.render(
+                request.template_id, request.variables or {}
+            )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     if not prompt_text:
-        raise HTTPException(status_code=400, detail="Either 'prompt' or 'template_id' must be provided")
+        raise HTTPException(
+            status_code=400, detail="Either 'prompt' or 'template_id' must be provided"
+        )
 
     # Validation & Sanitization
     is_valid, error_msg = SentinelFirewall.validate(prompt_text, request.tenant_id)
@@ -299,12 +305,20 @@ async def generate(request: GenerateRequest, req: Request):
     if not rate_limit_result.allowed:
         record_failure(request.tenant_id, "rate_limit")
         record_rate_limit_rejection(request.tenant_id, rate_limit_result.limit_exceeded)
-        update_rate_limit_remaining(request.tenant_id, "rpm", rate_limit_result.rpm_remaining)
-        update_rate_limit_remaining(request.tenant_id, "tpm", rate_limit_result.tpm_remaining)
+        update_rate_limit_remaining(
+            request.tenant_id, "rpm", rate_limit_result.rpm_remaining
+        )
+        update_rate_limit_remaining(
+            request.tenant_id, "tpm", rate_limit_result.tpm_remaining
+        )
         if current_span:
             current_span.set_attribute("error.type", "rate_limit")
-            current_span.set_attribute("rate_limit.exceeded", rate_limit_result.limit_exceeded)
-        retry_after = max(rate_limit_result.retry_after_rpm, rate_limit_result.retry_after_tpm)
+            current_span.set_attribute(
+                "rate_limit.exceeded", rate_limit_result.limit_exceeded
+            )
+        retry_after = max(
+            rate_limit_result.retry_after_rpm, rate_limit_result.retry_after_tpm
+        )
         limit_type = rate_limit_result.limit_exceeded.upper()
         raise HTTPException(
             status_code=429,
@@ -317,7 +331,9 @@ async def generate(request: GenerateRequest, req: Request):
         )
 
     # Multi-tenant quota
-    if not await quota_manager.check_quota(request.tenant_id, tokens=len(prompt_sanitized.split())):
+    if not await quota_manager.check_quota(
+        request.tenant_id, tokens=len(prompt_sanitized.split())
+    ):
         record_failure(request.tenant_id, "quota")
         raise HTTPException(status_code=429, detail="Quota exceeded")
 
@@ -461,16 +477,26 @@ async def generate(request: GenerateRequest, req: Request):
                 cost = cost_tracker.calculate_cost(m_name, actual_tokens)
 
                 # Record metrics
-                record_latency(request.tenant_id, result["model"], result["provider"], latency)
-                record_tokens(request.tenant_id, result["model"], prompt_tokens, completion_tokens)
-                record_cost_metric(request.tenant_id, result["model"], result["provider"], cost)
-                record_request(request.tenant_id, result["model"], result["provider"], "success")
+                record_latency(
+                    request.tenant_id, result["model"], result["provider"], latency
+                )
+                record_tokens(
+                    request.tenant_id, result["model"], prompt_tokens, completion_tokens
+                )
+                record_cost_metric(
+                    request.tenant_id, result["model"], result["provider"], cost
+                )
+                record_request(
+                    request.tenant_id, result["model"], result["provider"], "success"
+                )
                 record_cache_miss(request.tenant_id)
 
                 # Record fallback if not first attempt
                 attempt_idx = fallback_models.index(m_name)
                 if attempt_idx > 0:
-                    record_fallback(request.tenant_id, fallback_models[0], m_name, "error")
+                    record_fallback(
+                        request.tenant_id, fallback_models[0], m_name, "error"
+                    )
                     if current_span:
                         current_span.set_attribute("fallback_attempt", attempt_idx)
 
@@ -560,7 +586,9 @@ async def generate(request: GenerateRequest, req: Request):
                 record_fallback(request.tenant_id, m_name, next_model, trigger)
 
             # Release token reservation for failed attempt
-            await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
+            await rate_limiter.release_reservation(
+                request.tenant_id, estimated_total_tokens
+            )
             await adaptive_router.record_result(m_name, False, 5000, 0.0)
             last_error = e
             continue
@@ -586,12 +614,16 @@ async def generate_stream(request: GenerateRequest, req: Request):
     prompt_text = request.prompt
     if request.template_id:
         try:
-            prompt_text = template_manager.render(request.template_id, request.variables or {})
+            prompt_text = template_manager.render(
+                request.template_id, request.variables or {}
+            )
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
     if not prompt_text:
-        raise HTTPException(status_code=400, detail="Either 'prompt' or 'template_id' must be provided")
+        raise HTTPException(
+            status_code=400, detail="Either 'prompt' or 'template_id' must be provided"
+        )
 
     # Validation & Sanitization
     is_valid, error_msg = SentinelFirewall.validate(prompt_text, request.tenant_id)
@@ -611,7 +643,9 @@ async def generate_stream(request: GenerateRequest, req: Request):
     )
     if not rate_limit_result.allowed:
         failure_counter.inc()
-        retry_after = max(rate_limit_result.retry_after_rpm, rate_limit_result.retry_after_tpm)
+        retry_after = max(
+            rate_limit_result.retry_after_rpm, rate_limit_result.retry_after_tpm
+        )
         limit_type = rate_limit_result.limit_exceeded.upper()
         raise HTTPException(
             status_code=429,
@@ -632,7 +666,9 @@ async def generate_stream(request: GenerateRequest, req: Request):
     if not models:
         record_failure(request.tenant_id, "provider")
         # Release reservation since we're not making provider call
-        await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
+        await rate_limiter.release_reservation(
+            request.tenant_id, estimated_total_tokens
+        )
         raise HTTPException(status_code=503, detail="No models available for stream")
 
     m_name = models[0]
@@ -640,7 +676,9 @@ async def generate_stream(request: GenerateRequest, req: Request):
     if not await budget_enforcer.check_budget(request.tenant_id, estimated_cost):
         record_failure(request.tenant_id, "budget")
         record_budget_rejection(request.tenant_id)
-        await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
+        await rate_limiter.release_reservation(
+            request.tenant_id, estimated_total_tokens
+        )
         remaining = await budget_enforcer.get_remaining_budget(request.tenant_id)
         update_budget_remaining(request.tenant_id, remaining)
         raise HTTPException(
@@ -650,7 +688,9 @@ async def generate_stream(request: GenerateRequest, req: Request):
 
     provider = ProviderFactory.get_provider_for_model(m_name)
     if not provider:
-        await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
+        await rate_limiter.release_reservation(
+            request.tenant_id, estimated_total_tokens
+        )
         raise HTTPException(status_code=503, detail=f"No provider for {m_name}")
 
     async def stream_wrapper():
@@ -663,7 +703,9 @@ async def generate_stream(request: GenerateRequest, req: Request):
             stream_span.set_attribute("streaming", True)
 
         try:
-            async for chunk in provider.stream_generate(prompt=prompt_sanitized, model=m_name):
+            async for chunk in provider.stream_generate(
+                prompt=prompt_sanitized, model=m_name
+            ):
                 full_output.append(chunk)
                 yield f"data: {json.dumps({'chunk': chunk, 'model': m_name})}\n\n"
 
@@ -683,10 +725,16 @@ async def generate_stream(request: GenerateRequest, req: Request):
             cost = cost_tracker.calculate_cost(m_name, actual_tokens)
 
             # Record metrics
-            record_latency(request.tenant_id, m_name, provider.__class__.__name__, latency)
+            record_latency(
+                request.tenant_id, m_name, provider.__class__.__name__, latency
+            )
             record_tokens(request.tenant_id, m_name, prompt_tokens, completion_tokens)
-            record_cost_metric(request.tenant_id, m_name, provider.__class__.__name__, cost)
-            record_request(request.tenant_id, m_name, provider.__class__.__name__, "success")
+            record_cost_metric(
+                request.tenant_id, m_name, provider.__class__.__name__, cost
+            )
+            record_request(
+                request.tenant_id, m_name, provider.__class__.__name__, "success"
+            )
             record_cache_miss(request.tenant_id)
 
             if stream_span:
@@ -704,19 +752,25 @@ async def generate_stream(request: GenerateRequest, req: Request):
         except Exception as e:
             logger.error(f"Stream failed for {m_name}: {e}")
             record_failure(request.tenant_id, "stream_failed")
-            record_request(request.tenant_id, m_name, provider.__class__.__name__, "error")
+            record_request(
+                request.tenant_id, m_name, provider.__class__.__name__, "error"
+            )
             if stream_span:
                 stream_span.set_attribute("error.type", "stream_failed")
                 stream_span.set_attribute("error.message", str(e))
             # Release reservation on failure
-            await rate_limiter.release_reservation(request.tenant_id, estimated_total_tokens)
+            await rate_limiter.release_reservation(
+                request.tenant_id, estimated_total_tokens
+            )
             await adaptive_router.record_result(m_name, False, 5000, 0.0)
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(stream_wrapper(), media_type="text/event-stream")
 
+
 class TemplateRequest(BaseModel):
     content: str
+
 
 @app.post("/admin/templates/{template_id}")
 async def create_template(template_id: str, request: TemplateRequest):
@@ -724,15 +778,17 @@ async def create_template(template_id: str, request: TemplateRequest):
     template_manager.add_template(template_id, request.content)
     return {"status": "success", "template_id": template_id}
 
+
 @app.get("/admin/templates")
 async def list_templates():
     """Admin endpoint to list all available templates."""
     return {"templates": list(template_manager._templates.keys())}
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     logger.error(f"Global error: {exc}", exc_info=True)
     return JSONResponse(status_code=500, content={"detail": "Internal server error"})
 
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
 
+# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern

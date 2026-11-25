@@ -10,16 +10,20 @@ from llm_gateway.reliability.retry import retry
 
 logger = logging.getLogger(__name__)
 
+
 class GeminiProvider(BaseProvider):
     """
     Provider implementation for Google's Gemini API.
-    
-    Supports flash and pro models with optimized SSE streaming. 
+
+    Supports flash and pro models with optimized SSE streaming.
     Includes reliability wrappers for production stability.
     """
+
     def __init__(self):
         self.api_key = os.environ.get("GEMINI_API_KEY")
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="gemini")
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=3, recovery_timeout=30, name="gemini"
+        )
         self.default_model = "gemini-1.5-flash"
 
     @retry(max_retries=2, backoff_factor=1.0)
@@ -45,17 +49,18 @@ class GeminiProvider(BaseProvider):
                     "model": model,
                     "output": output,
                     "status": "success",
-                    "mock": True
+                    "mock": True,
                 }
 
             import httpx
+
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={self.api_key}"
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
                     "maxOutputTokens": kwargs.get("max_tokens", 1024),
-                    "temperature": kwargs.get("temperature", 0.7)
-                }
+                    "temperature": kwargs.get("temperature", 0.7),
+                },
             }
 
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -77,7 +82,7 @@ class GeminiProvider(BaseProvider):
                         "candidatesTokenCount", 0
                     ),
                 },
-                "status": "success"
+                "status": "success",
             }
         except Exception as e:
             self.circuit_breaker.record_failure()
@@ -104,13 +109,14 @@ class GeminiProvider(BaseProvider):
                 return
 
             import httpx
+
             url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:streamGenerateContent?key={self.api_key}&alt=sse"
             payload = {
                 "contents": [{"parts": [{"text": prompt}]}],
                 "generationConfig": {
                     "maxOutputTokens": kwargs.get("max_tokens", 1024),
-                    "temperature": kwargs.get("temperature", 0.7)
-                }
+                    "temperature": kwargs.get("temperature", 0.7),
+                },
             }
 
             async with httpx.AsyncClient(timeout=30.0) as client:

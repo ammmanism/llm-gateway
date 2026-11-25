@@ -24,18 +24,16 @@ def _load_routing_config(config_path: Path = DEFAULT_ROUTING_CONFIG) -> Dict:
         # Return minimal default config
         return {
             "default_strategy": "fallback",
-            "strategies": {
-                "fallback": {
-                    "chain": ["gpt-3.5-turbo", "claude-3-haiku"]
-                }
-            }
+            "strategies": {"fallback": {"chain": ["gpt-3.5-turbo", "claude-3-haiku"]}},
         }
 
 
-def get_fallback_chain(primary_model: str, config_path: Path = DEFAULT_ROUTING_CONFIG) -> List[str]:
+def get_fallback_chain(
+    primary_model: str, config_path: Path = DEFAULT_ROUTING_CONFIG
+) -> List[str]:
     """
     Get the fallback chain for a primary model from config.
-    
+
     The chain includes the primary model as first entry, followed by
     configured fallback models. Duplicates are removed while preserving order.
     """
@@ -62,7 +60,7 @@ def get_fallback_chain(primary_model: str, config_path: Path = DEFAULT_ROUTING_C
 def get_fallback_chain_from_policy(tenant_id: str, primary_model: str) -> List[str]:
     """
     Retrieve the fallback chain for a given tenant and primary model.
-    
+
     In the future, this could support tenant-specific chains.
     For now, uses global config.
     """
@@ -72,12 +70,12 @@ def get_fallback_chain_from_policy(tenant_id: str, primary_model: str) -> List[s
 def should_fallback(exception: Exception, circuit_breaker_state: str = "") -> bool:
     """
     Determine if an exception should trigger fallback.
-    
+
     Fallback triggers on:
     - HTTP 429 (rate limited)
     - HTTP 500, 502, 503, 504 (server errors)
     - Circuit breaker OPEN state
-    
+
     Does NOT fallback on:
     - HTTP 400, 401, 403, 404, 422 (client errors)
     - Validation errors
@@ -93,7 +91,10 @@ def should_fallback(exception: Exception, circuit_breaker_state: str = "") -> bo
             return True
 
     # Check for httpx HTTPStatusError
-    if hasattr(exception, "__class__") and "HTTPStatusError" in exception.__class__.__name__:
+    if (
+        hasattr(exception, "__class__")
+        and "HTTPStatusError" in exception.__class__.__name__
+    ):
         if hasattr(exception, "response"):
             status_code = getattr(exception.response, "status_code", None)
             if status_code in FALLBACK_TRIGGER_CODES:
@@ -101,17 +102,42 @@ def should_fallback(exception: Exception, circuit_breaker_state: str = "") -> bo
 
     # Check error message for common patterns
     error_str = str(exception).lower()
-    if any(pattern in error_str for pattern in [
-        "rate limit", "429", "too many requests",
-        "500", "502", "503", "504",
-        "internal server error", "bad gateway", "service unavailable", "gateway timeout",
-        "connection refused", "connection timeout", "dns", "network",
-    ]):
+    if any(
+        pattern in error_str
+        for pattern in [
+            "rate limit",
+            "429",
+            "too many requests",
+            "500",
+            "502",
+            "503",
+            "504",
+            "internal server error",
+            "bad gateway",
+            "service unavailable",
+            "gateway timeout",
+            "connection refused",
+            "connection timeout",
+            "dns",
+            "network",
+        ]
+    ):
         # But exclude client errors
-        if not any(pattern in error_str for pattern in [
-            "400", "401", "403", "404", "422",
-            "bad request", "unauthorized", "forbidden", "not found", "unprocessable",
-        ]):
+        if not any(
+            pattern in error_str
+            for pattern in [
+                "400",
+                "401",
+                "403",
+                "404",
+                "422",
+                "bad request",
+                "unauthorized",
+                "forbidden",
+                "not found",
+                "unprocessable",
+            ]
+        ):
             return True
 
     return False
@@ -125,7 +151,7 @@ async def list_policies():
         "fallback_triggers": {
             "http_codes": sorted(FALLBACK_TRIGGER_CODES),
             "circuit_breaker_open": True,
-        }
+        },
     }
 
 

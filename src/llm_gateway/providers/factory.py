@@ -1,19 +1,22 @@
-from llm_gateway.providers.openai import OpenAIProvider
+from typing import Any, Dict, Optional, Set
+
 from llm_gateway.providers.anthropic import AnthropicProvider
 from llm_gateway.providers.gemini import GeminiProvider
-from llm_gateway.providers.together import TogetherProvider
 from llm_gateway.providers.groq import GroqProvider
-from llm_gateway.providers.vllm import VLLMProvider
 from llm_gateway.providers.ollama import OllamaProvider
-from typing import Dict, Any, Optional, Set
+from llm_gateway.providers.openai import OpenAIProvider
+from llm_gateway.providers.together import TogetherProvider
+from llm_gateway.providers.vllm import VLLMProvider
+
 
 class ProviderFactory:
     """
     Singleton factory for managing LLM provider instances.
-    
-    This factory handles the mapping between model names and their respective 
+
+    This factory handles the mapping between model names and their respective
     provider implementations, ensuring that requests are routed correctly.
     """
+
     _providers = {
         "openai": OpenAIProvider(),
         "anthropic": AnthropicProvider(),
@@ -21,15 +24,17 @@ class ProviderFactory:
         "together": TogetherProvider(),
         "groq": GroqProvider(),
         "vllm": VLLMProvider(),
-        "ollama": OllamaProvider()
+        "ollama": OllamaProvider(),
     }
-    
+
     _disabled_providers: Set[str] = set()
 
     @classmethod
     def get_all_providers(cls) -> Dict[str, Any]:
         """Retrieve all registered provider instances."""
-        return {k: v for k, v in cls._providers.items() if k not in cls._disabled_providers}
+        return {
+            k: v for k, v in cls._providers.items() if k not in cls._disabled_providers
+        }
 
     @classmethod
     def disable_provider(cls, name: str):
@@ -57,7 +62,7 @@ class ProviderFactory:
             provider_key = "vllm"
         elif "llama" in model_name or "mixtral" in model_name:
             provider_key = "together"
-            
+
         if provider_key and provider_key not in cls._disabled_providers:
             return cls._providers.get(provider_key)
         return None

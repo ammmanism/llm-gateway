@@ -47,7 +47,10 @@ async def content_factory(input_path: str, output_dir: str):
     # 1. Generate SEO summary
     print("Generating SEO summary...")
     summary = await client.generate(
-        prompt=f"Write an SEO-optimized summary under 160 characters:\n\n{blog_text[:2000]}",
+        prompt=(
+            "Write an SEO-optimized summary under 160 characters:\n\n"
+            f"{blog_text[:2000]}"
+        ),
         modality="text",
         quality="premium",
     )
@@ -110,10 +113,9 @@ async def content_factory(input_path: str, output_dir: str):
     (output_path / "twitter_thread.txt").write_text(thread.content)
     print("   Saved: twitter_thread.txt")
 
-    print(f"\nContent factory complete! Assets saved to {output_dir}/")
-    print(
-        f"Total cost: ${summary.cost_usd + image.cost_usd + audio.cost_usd + video.cost_usd:.2f}"
-    )
+    total_cost = summary.cost_usd + image.cost_usd + audio.cost_usd + video.cost_usd
+    print(f"Content factory complete! Assets saved to {output_dir}/")
+    print(f"Total cost: ${total_cost:.2f}")
 
 
 if __name__ == "__main__":
