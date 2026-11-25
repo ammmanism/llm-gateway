@@ -28,6 +28,7 @@ ledger rows remain attributed to the tenant.
 import asyncio
 from llm_gateway.auth.key_store import VirtualKeyStore
 
+
 async def main():
     store = VirtualKeyStore()
     raw_key, metadata = await store.create_key(
@@ -41,6 +42,7 @@ async def main():
 
     rotated = await store.rotate_key(raw_key)
     await store.revoke_key(raw_key)
+
 
 asyncio.run(main())
 ```
