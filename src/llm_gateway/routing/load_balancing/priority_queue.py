@@ -1,6 +1,7 @@
 import heapq
 from typing import List, Tuple
 
+
 class PriorityQueueBalancer:
     def __init__(self, endpoints_with_priority: List[Tuple[int, str]]):
         self.pq = endpoints_with_priority
@@ -12,5 +13,5 @@ class PriorityQueueBalancer:
         heapq.heappush(self.pq, (priority, endpoint))
         return endpoint
 
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
 
+# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern

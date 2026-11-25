@@ -3,9 +3,9 @@
 Test multi-tenant isolation using the real BudgetEnforcer.
 Concurrent simulated tenant traffic with quota enforcement.
 """
+
 import asyncio
 import json
-import time
 from pathlib import Path
 
 from llm_gateway.auth.budget_enforcer import BudgetEnforcer
@@ -33,12 +33,10 @@ async def main():
         "tenant_c": {"budget": 2.0, "requests": 80},
     }
 
-    start = time.perf_counter()
     tasks = []
     for tid, cfg in tenants.items():
         tasks.append(tenant_worker(be, tid, cfg["budget"], cfg["requests"]))
     results = await asyncio.gather(*tasks)
-    elapsed = time.perf_counter() - start
 
     output = {}
     for i, tid in enumerate(tenants):

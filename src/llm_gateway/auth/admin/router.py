@@ -1,13 +1,17 @@
-from fastapi import APIRouter, Depends, Request, HTTPException, status
-from pydantic import BaseModel, Field
-from typing import Optional, Dict, List
-import secrets
 import hashlib
 import json
+import secrets
 import uuid
+from typing import Dict, List, Optional
+
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from pydantic import BaseModel, Field
+
 from llm_gateway.security.auth import require_admin_api_key
 
-router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_api_key)])
+router = APIRouter(
+    prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin_api_key)]
+)
 
 
 def _row_get(row, key, default=None):
@@ -15,6 +19,7 @@ def _row_get(row, key, default=None):
         return row[key]
     except (KeyError, TypeError):
         return default
+
 
 class TenantCreate(BaseModel):
     name: str
@@ -27,6 +32,7 @@ class TenantCreate(BaseModel):
     allowed_models: Optional[List[str]] = None
     cache_threshold: float = 0.92
     cache_ttl_hours: int = 24
+
 
 class TenantResponse(BaseModel):
     id: str
@@ -42,24 +48,25 @@ class TenantResponse(BaseModel):
     cache_ttl_hours: int
     is_active: bool
 
+
 @router.post("/tenants", status_code=status.HTTP_201_CREATED)
 async def create_tenant(request: Request, tenant_in: TenantCreate):
     pg_pool = request.app.state.pg_pool
     if not pg_pool:
         raise HTTPException(status_code=500, detail="Database pool not initialized")
-        
+
     api_key = f"nc_{secrets.token_hex(16)}"
     api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
     tenant_id = str(uuid.uuid4())
-    
+
     try:
         async with pg_pool.acquire() as conn:
             await conn.execute(
                 """
                 INSERT INTO tenants (
                     id, api_key_hash, name, tier, rate_limit_rpm, rate_limit_tpm,
-                    spend_cap_usd, alert_threshold, allowed_models, cache_threshold, cache_ttl_hours,
-                    routing_weights
+                    spend_cap_usd, alert_threshold, allowed_models,
+                    cache_threshold, cache_ttl_hours, routing_weights
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
                 """,
                 tenant_id,
@@ -73,24 +80,27 @@ async def create_tenant(request: Request, tenant_in: TenantCreate):
                 tenant_in.allowed_models,
                 tenant_in.cache_threshold,
                 tenant_in.cache_ttl_hours,
-                json.dumps(tenant_in.routing_weights) if tenant_in.routing_weights else None
+                json.dumps(tenant_in.routing_weights)
+                if tenant_in.routing_weights
+                else None,
             )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
-        
+
     return {
         "status": "success",
         "api_key": api_key,
         "tenant_id": tenant_id,
-        "message": "Write down the api_key. It will not be shown again."
+        "message": "Write down the api_key. It will not be shown again.",
     }
+
 
 @router.get("/tenants", response_model=List[TenantResponse])
 async def list_tenants(request: Request):
     pg_pool = request.app.state.pg_pool
     if not pg_pool:
         raise HTTPException(status_code=500, detail="Database pool not initialized")
-        
+
     try:
         async with pg_pool.acquire() as conn:
             rows = await conn.fetch("SELECT * FROM tenants")
@@ -103,18 +113,25 @@ async def list_tenants(request: Request):
                         tier=row["tier"],
                         rate_limit_rpm=row["rate_limit_rpm"],
                         rate_limit_tpm=row["rate_limit_tpm"],
-                        spend_cap_usd=float(row["spend_cap_usd"]) if row["spend_cap_usd"] is not None else None,
-                        alert_threshold=float(row["alert_threshold"]) if row["alert_threshold"] is not None else None,
-                        routing_weights=json.loads(_row_get(row, "routing_weights")) if isinstance(_row_get(row, "routing_weights"), str) else _row_get(row, "routing_weights"),
+                        spend_cap_usd=float(row["spend_cap_usd"])
+                        if row["spend_cap_usd"] is not None
+                        else None,
+                        alert_threshold=float(row["alert_threshold"])
+                        if row["alert_threshold"] is not None
+                        else None,
+                        routing_weights=json.loads(_row_get(row, "routing_weights"))
+                        if isinstance(_row_get(row, "routing_weights"), str)
+                        else _row_get(row, "routing_weights"),
                         allowed_models=_row_get(row, "allowed_models"),
                         cache_threshold=_row_get(row, "cache_threshold", 0.92),
                         cache_ttl_hours=_row_get(row, "cache_ttl_hours", 24),
-                        is_active=row["is_active"]
+                        is_active=row["is_active"],
                     )
                 )
             return tenants
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
 
 @router.delete("/tenants/{tenant_id}", status_code=status.HTTP_200_OK)
 async def delete_tenant(request: Request, tenant_id: str):
@@ -122,21 +139,26 @@ async def delete_tenant(request: Request, tenant_id: str):
     tenant_manager = request.app.state.tenant_manager
     if not pg_pool:
         raise HTTPException(status_code=500, detail="Database pool not initialized")
-        
+
     try:
         async with pg_pool.acquire() as conn:
-            row = await conn.fetchrow("SELECT api_key_hash FROM tenants WHERE id = $1", tenant_id)
+            row = await conn.fetchrow(
+                "SELECT api_key_hash FROM tenants WHERE id = $1", tenant_id
+            )
             if not row:
                 raise HTTPException(status_code=404, detail="Tenant not found")
-                
+
             api_key_hash = row["api_key_hash"]
-            
+
             await conn.execute("DELETE FROM tenants WHERE id = $1", tenant_id)
-            
+
             if tenant_manager and tenant_manager.redis:
                 await tenant_manager.redis.delete(f"tenant:{api_key_hash}")
-                
-            return {"status": "success", "message": f"Tenant {tenant_id} deleted successfully"}
+
+            return {
+                "status": "success",
+                "message": f"Tenant {tenant_id} deleted successfully",
+            }
     except HTTPException:
         raise
     except Exception as e:

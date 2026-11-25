@@ -71,16 +71,18 @@ async def main() -> None:
     provider = FakeProvider()
     ledger = CostLedger(str(LEDGER))
 
-    with patch.object(
-        server.ProviderFactory,
-        "get_provider_for_model",
-        staticmethod(lambda model: provider),
-    ), patch.object(
-        server,
-        "rate_limiter",
-        RateLimiter(rpm_limit=10**6, tpm_limit=10**9, window_seconds=60),
-    ), patch.object(
-        server, "cost_ledger", ledger
+    with (
+        patch.object(
+            server.ProviderFactory,
+            "get_provider_for_model",
+            staticmethod(lambda model: provider),
+        ),
+        patch.object(
+            server,
+            "rate_limiter",
+            RateLimiter(rpm_limit=10**6, tpm_limit=10**9, window_seconds=60),
+        ),
+        patch.object(server, "cost_ledger", ledger),
     ):
         transport = httpx.ASGITransport(app=server.app)
         async with httpx.AsyncClient(

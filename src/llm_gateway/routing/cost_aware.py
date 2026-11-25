@@ -46,10 +46,16 @@ class CostAwareRouter(BaseRouter):
             for model in config.models:
                 self.model_costs[model.name] = model.cost_per_1k_tokens
 
-            logger.info("Loaded pricing for %s models into CostAwareRouter", len(self.model_costs))
+            logger.info(
+                "Loaded pricing for %s models into CostAwareRouter",
+                len(self.model_costs),
+            )
 
         except Exception as e:
-            logger.error("Failed to load CostAwareRouter config: %s. Using resilient defaults.", e)
+            logger.error(
+                "Failed to load CostAwareRouter config: %s. Using resilient defaults.",
+                e,
+            )
             self.model_costs = {
                 "llama-3-8b": 0.0001,
                 "claude-3-haiku": 0.00025,
@@ -74,18 +80,22 @@ class CostAwareRouter(BaseRouter):
 
         if allowed_models:
             allowed = set(allowed_models)
-            candidates = {name: cost for name, cost in candidates.items() if name in allowed}
+            candidates = {
+                name: cost for name, cost in candidates.items() if name in allowed
+            }
 
         if max_cost is not None:
             candidates = {
-                name: cost for name, cost in candidates.items() if cost <= float(max_cost)
+                name: cost
+                for name, cost in candidates.items()
+                if cost <= float(max_cost)
             }
 
         if not candidates:
             logger.warning(
-                "Cost filters removed every model; falling back to cheapest configured model"
+                "Cost filters removed every model; "
+                "falling back to cheapest configured model"
             )
             candidates = dict(self.model_costs)
 
         return sorted(candidates.keys(), key=lambda model: (candidates[model], model))
-

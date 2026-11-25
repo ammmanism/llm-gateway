@@ -1,9 +1,10 @@
 """initial production schema
 
 Revision ID: 0001_initial_schema
-Revises: 
+Revises:
 Create Date: 2026-07-02
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -81,12 +82,39 @@ def upgrade() -> None:
         )
         """
     )
-    op.execute("CREATE INDEX IF NOT EXISTS idx_tenants_api_key_hash ON tenants(api_key_hash)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_cache_entries_tenant_namespace ON cache_entries(tenant_id, namespace)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_cache_entries_metadata_hash ON cache_entries(metadata_hash)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_cache_entries_prompt_hash ON cache_entries(prompt_hash)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_cache_entries_expires_at ON cache_entries(expires_at)")
-    op.execute("CREATE INDEX IF NOT EXISTS idx_usage_log_tenant_created_at ON usage_log(tenant_id, created_at DESC)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_tenants_api_key_hash ON tenants(api_key_hash)"
+    )
+    op.execute(
+        (
+            "CREATE INDEX IF NOT EXISTS idx_cache_entries_tenant_namespace "
+            "ON cache_entries(tenant_id, namespace)"
+        )
+    )
+    op.execute(
+        (
+            "CREATE INDEX IF NOT EXISTS idx_cache_entries_metadata_hash "
+            "ON cache_entries(metadata_hash)"
+        )
+    )
+    op.execute(
+        (
+            "CREATE INDEX IF NOT EXISTS idx_cache_entries_prompt_hash "
+            "ON cache_entries(prompt_hash)"
+        )
+    )
+    op.execute(
+        (
+            "CREATE INDEX IF NOT EXISTS idx_cache_entries_expires_at "
+            "ON cache_entries(expires_at)"
+        )
+    )
+    op.execute(
+        (
+            "CREATE INDEX IF NOT EXISTS idx_usage_log_tenant_created_at "
+            "ON usage_log(tenant_id, created_at DESC)"
+        )
+    )
     op.execute(
         "CREATE INDEX IF NOT EXISTS idx_cache_entries_embedding_hnsw "
         "ON cache_entries USING hnsw (embedding vector_cosine_ops)"

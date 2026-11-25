@@ -1,12 +1,14 @@
-import time
-from locust import HttpUser, task, between
+from locust import HttpUser, between, task
+
 
 class BurstUser(HttpUser):
-    wait_time = between(0.1, 0.5) # Fast requests
+    wait_time = between(0.1, 0.5)  # Fast requests
 
     @task
     def burst(self):
-        self.client.post("/generate", json={"prompt": "Burst test", "router": "fallback"})
+        self.client.post(
+            "/generate", json={"prompt": "Burst test", "router": "fallback"}
+        )
+
 
 # Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
-

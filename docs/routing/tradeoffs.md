@@ -1,8 +1,11 @@
-# Tradeoffs
+# Routing tradeoffs
 
-- **Memory vs. Redis Caching**: In-memory is faster but doesn't persist across restarts or scale horizontally. Redis is preferred for production.
-- **Semantic vs. Exact Cache**: Semantic cache saves more money but introduces embedding latency and potential accuracy issues.
-- **Latency vs. Cost Routing**: Cheapest models are often slowest and least capable.
+- **Memory vs Redis:** in-memory state is per process; Redis enables shared rate
+  limits, budgets, and exact-cache entries.
+- **Semantic vs exact:** semantic lookup recovers paraphrases but can mis-route
+  adjacent intents; exact lookup is deterministic.
+- **Latency vs cost:** cheaper models may be slower or less capable.
+- **Exploration vs exploitation:** Thompson sampling explores uncertain models
+  and converges toward observed reliable models.
 
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
-
+Measured cache and failover trade-offs are committed under `data/evidence/`.

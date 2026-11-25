@@ -61,9 +61,7 @@ class TestCircuitBreakerHalfOpen:
 
     def test_half_open_allows_limited_probes(self):
         cb = CircuitBreaker(
-            failure_threshold=2,
-            recovery_timeout=0.1,
-            max_half_open_probes=2
+            failure_threshold=2, recovery_timeout=0.1, max_half_open_probes=2
         )
         cb.record_failure()
         cb.record_failure()
@@ -102,9 +100,7 @@ class TestCircuitBreakerHalfOpen:
 
     def test_half_open_probe_counter_resets_on_close(self):
         cb = CircuitBreaker(
-            failure_threshold=2,
-            recovery_timeout=0.1,
-            max_half_open_probes=1
+            failure_threshold=2, recovery_timeout=0.1, max_half_open_probes=1
         )
         cb.record_failure()
         cb.record_failure()
@@ -194,13 +190,12 @@ class TestCircuitBreakerEdgeCases:
 
     def test_custom_clock_for_testing(self):
         clock_time = [0.0]
+
         def mock_clock():
             return clock_time[0]
 
         cb = CircuitBreaker(
-            failure_threshold=2,
-            recovery_timeout=10.0,
-            clock=mock_clock
+            failure_threshold=2, recovery_timeout=10.0, clock=mock_clock
         )
 
         cb.record_failure()
@@ -270,13 +265,12 @@ class TestCircuitBreakerIntegration:
         """Test multiple failure/recovery cycles."""
         # Use mock clock for deterministic timing
         clock_time = [0.0]
+
         def mock_clock():
             return clock_time[0]
 
         cb = CircuitBreaker(
-            failure_threshold=2,
-            recovery_timeout=0.05,
-            clock=mock_clock
+            failure_threshold=2, recovery_timeout=0.05, clock=mock_clock
         )
 
         for i in range(3):

@@ -1,0 +1,4 @@
+check,workers,operations,expected,actual,passed
+shared_rpm_limit,2,20,10,10,True
+cross_worker_exact_cache,2,1,1,1,True
+concurrent_budget_increments,2,20,2.0,2.0,True

@@ -10,16 +10,20 @@ from llm_gateway.reliability.retry import retry
 
 logger = logging.getLogger(__name__)
 
+
 class OpenAIProvider(BaseProvider):
     """
     Provider implementation for OpenAI's Chat Completion API.
-    
-    Includes built-in retry logic and circuit breaking to ensure high 
+
+    Includes built-in retry logic and circuit breaking to ensure high
     reliability. Supports both standard and streaming generation modes.
     """
+
     def __init__(self):
         self.api_key = os.environ.get("OPENAI_API_KEY")
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="openai")
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=3, recovery_timeout=30, name="openai"
+        )
         self.default_model = "gpt-3.5-turbo"
 
     @retry(max_retries=3, backoff_factor=0.5)
@@ -45,27 +49,28 @@ class OpenAIProvider(BaseProvider):
                     "model": model,
                     "output": output,
                     "status": "success",
-                    "mock": True
+                    "mock": True,
                 }
 
             import httpx
+
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             payload = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": kwargs.get("max_tokens", 1024),
                 "temperature": kwargs.get("temperature", 0.7),
-                "stream": False
+                "stream": False,
             }
 
             async with httpx.AsyncClient(timeout=60.0) as client:
                 response = await client.post(
                     "https://api.openai.com/v1/chat/completions",
                     json=payload,
-                    headers=headers
+                    headers=headers,
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -77,7 +82,7 @@ class OpenAIProvider(BaseProvider):
                 "model": model,
                 "output": output,
                 "usage": data.get("usage", {}),
-                "status": "success"
+                "status": "success",
             }
         except Exception as e:
             self.circuit_breaker.record_failure()
@@ -104,16 +109,17 @@ class OpenAIProvider(BaseProvider):
                 return
 
             import httpx
+
             headers = {
                 "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
+                "Content-Type": "application/json",
             }
             payload = {
                 "model": model,
                 "messages": [{"role": "user", "content": prompt}],
                 "max_tokens": kwargs.get("max_tokens", 1024),
                 "temperature": kwargs.get("temperature", 0.7),
-                "stream": True
+                "stream": True,
             }
 
             async with httpx.AsyncClient(timeout=60.0) as client:
@@ -121,7 +127,7 @@ class OpenAIProvider(BaseProvider):
                     "POST",
                     "https://api.openai.com/v1/chat/completions",
                     json=payload,
-                    headers=headers
+                    headers=headers,
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():

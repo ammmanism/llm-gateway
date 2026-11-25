@@ -1,15 +1,28 @@
-# Design Tradeoffs
+# Design tradeoffs
 
-## Semantic vs Exact Cache
-- **Exact** is simple and guaranteed correct, but misses paraphrases.
-- **Semantic** catches rephrased queries, but adds latency (embedding + FAISS search) and may occasionally return a non-exact match.
-- **We chose hybrid**: exact first, then semantic on miss. Threshold tuned to 0.92 - high enough to avoid false positives, low enough to catch most paraphrases.
+## Exact vs semantic cache
 
-## Circuit Breaker Threshold
-- Failure threshold = 3 consecutive failures. Why not 2? Too sensitive to transient flukes.
-- Recovery timeout = 5 seconds. Long enough to let the provider stabilise, short enough to avoid prolonged downtime.
+Exact hits cannot be wrong for the same prompt and namespace. Semantic hits can
+recover paraphrases but may answer an adjacent-intent query incorrectly. The
+gateway therefore checks exact first and uses a measured semantic threshold of
+`0.85`; see `data/evidence/semantic_threshold_sweep.csv`.
 
-## Cost-Aware vs Latency-Aware
-- We weighted cost more heavily (0.7) because LLM costs dominate monthly bills, but we also consider latency (0.3) to maintain user experience.
+## Circuit breaker defaults
 
-All parameters are configurable via YAML - we provide sensible defaults but allow tuning per deployment.
+The default failure threshold is 3 and the default recovery timeout is 30
+seconds. Recovery scenarios with 0.5/1/2/5-second timeouts are measured in
+`data/evidence/fallback_recovery.csv`.
+
+## Routing
+
+`AdaptiveRouter` currently uses Thompson sampling over observed success/failure
+counts. Cost-aware and latency-aware routers are available as alternatives. The
+adaptive router's cost/latency weights are reserved for future work; they are not
+part of the current selection score.
+
+## Memory vs Redis
+
+In-memory state is simple and fast but per process. Redis backs rate limits,
+budgets, and the exact cache when configured. The FAISS semantic index remains
+per process. A two-worker Redis correctness check is committed in
+`data/evidence/redis_consistency.csv`.

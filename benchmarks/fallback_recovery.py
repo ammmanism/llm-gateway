@@ -5,6 +5,7 @@ Uses the real CircuitBreaker from llm_gateway.reliability.circuit_breaker.
 
 Generates CSV evidence for fallback recovery timeline.
 """
+
 import csv
 import json
 import time
@@ -18,6 +19,7 @@ from llm_gateway.reliability.circuit_breaker import (
 
 class FailingProvider:
     """Simulates a provider that fails N times then recovers."""
+
     def __init__(self, name, fail_after=0):
         self.name = name
         self.call_count = 0
@@ -41,36 +43,42 @@ def simulate_outage(breaker, provider, failure_count=5, events=None):
             e.provider = provider.name
             dropped += 1
             if events is not None:
-                events.append({
-                    "timestamp": timestamp,
-                    "event": "request_rejected",
-                    "circuit_state": breaker.get_state().value,
-                    "error": str(e),
-                    "provider": e.provider
-                })
+                events.append(
+                    {
+                        "timestamp": timestamp,
+                        "event": "request_rejected",
+                        "circuit_state": breaker.get_state().value,
+                        "error": str(e),
+                        "provider": e.provider,
+                    }
+                )
             continue
 
         try:
             provider.generate(f"query {i}")
             breaker.record_success()
             if events is not None:
-                events.append({
-                    "timestamp": timestamp,
-                    "event": "request_success",
-                    "circuit_state": breaker.get_state().value,
-                    "provider": provider.name
-                })
+                events.append(
+                    {
+                        "timestamp": timestamp,
+                        "event": "request_success",
+                        "circuit_state": breaker.get_state().value,
+                        "provider": provider.name,
+                    }
+                )
         except Exception as e:
             breaker.record_failure()
             dropped += 1
             if events is not None:
-                events.append({
-                    "timestamp": timestamp,
-                    "event": "request_failed",
-                    "circuit_state": breaker.get_state().value,
-                    "error": str(e),
-                    "provider": provider.name
-                })
+                events.append(
+                    {
+                        "timestamp": timestamp,
+                        "event": "request_failed",
+                        "circuit_state": breaker.get_state().value,
+                        "error": str(e),
+                        "provider": provider.name,
+                    }
+                )
         time.sleep(0.05)
     return dropped
 
@@ -88,13 +96,15 @@ def measure_recovery(breaker, provider, events=None):
         except CircuitOpenError as e:
             e.provider = provider.name
             if events is not None:
-                events.append({
-                    "timestamp": timestamp,
-                    "event": "recovery_poll_rejected",
-                    "circuit_state": breaker.get_state().value,
-                    "error": str(e),
-                    "poll_count": poll_count
-                })
+                events.append(
+                    {
+                        "timestamp": timestamp,
+                        "event": "recovery_poll_rejected",
+                        "circuit_state": breaker.get_state().value,
+                        "error": str(e),
+                        "poll_count": poll_count,
+                    }
+                )
             time.sleep(0.1)
             continue
 
@@ -103,23 +113,27 @@ def measure_recovery(breaker, provider, events=None):
             breaker.record_success()
             recovered = True
             if events is not None:
-                events.append({
-                    "timestamp": timestamp,
-                    "event": "recovery_success",
-                    "circuit_state": breaker.get_state().value,
-                    "poll_count": poll_count,
-                    "provider": provider.name
-                })
+                events.append(
+                    {
+                        "timestamp": timestamp,
+                        "event": "recovery_success",
+                        "circuit_state": breaker.get_state().value,
+                        "poll_count": poll_count,
+                        "provider": provider.name,
+                    }
+                )
         except Exception as e:
             breaker.record_failure()
             if events is not None:
-                events.append({
-                    "timestamp": timestamp,
-                    "event": "recovery_probe_failed",
-                    "circuit_state": breaker.get_state().value,
-                    "error": str(e),
-                    "poll_count": poll_count
-                })
+                events.append(
+                    {
+                        "timestamp": timestamp,
+                        "event": "recovery_probe_failed",
+                        "circuit_state": breaker.get_state().value,
+                        "error": str(e),
+                        "poll_count": poll_count,
+                    }
+                )
             time.sleep(0.1)
     return time.perf_counter() - start
 
@@ -137,36 +151,42 @@ def run_scenario(name, failure_threshold, recovery_timeout, fail_after, max_prob
     )
 
     # Record initial state
-    events.append({
-        "timestamp": time.time(),
-        "event": "scenario_start",
-        "circuit_state": breaker.get_state().value,
-        "scenario": name,
-        "failure_threshold": failure_threshold,
-        "recovery_timeout": recovery_timeout,
-        "max_half_open_probes": max_probes
-    })
+    events.append(
+        {
+            "timestamp": time.time(),
+            "event": "scenario_start",
+            "circuit_state": breaker.get_state().value,
+            "scenario": name,
+            "failure_threshold": failure_threshold,
+            "recovery_timeout": recovery_timeout,
+            "max_half_open_probes": max_probes,
+        }
+    )
 
     # Simulate outage
-    dropped = simulate_outage(breaker, provider, failure_count=fail_after + 2, events=events)
+    dropped = simulate_outage(
+        breaker, provider, failure_count=fail_after + 2, events=events
+    )
 
     # Measure recovery
     recovery_time = measure_recovery(breaker, provider, events=events)
 
-    events.append({
-        "timestamp": time.time(),
-        "event": "scenario_end",
-        "circuit_state": breaker.get_state().value,
-        "recovery_time_seconds": recovery_time,
-        "requests_dropped": dropped
-    })
+    events.append(
+        {
+            "timestamp": time.time(),
+            "event": "scenario_end",
+            "circuit_state": breaker.get_state().value,
+            "recovery_time_seconds": recovery_time,
+            "requests_dropped": dropped,
+        }
+    )
 
     return {
         "scenario": name,
         "recovery_time_seconds": round(recovery_time, 3),
         "requests_dropped": dropped,
         "final_circuit_state": breaker.get_state().value,
-        "events": events
+        "events": events,
     }
 
 
@@ -205,18 +225,20 @@ if __name__ == "__main__":
 
     with open(csv_file, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            "scenario",
-            "failure_threshold",
-            "recovery_timeout_s",
-            "time_to_detect_ms",
-            "time_to_switch_ms",
-            "requests_failed_before_open",
-            "requests_rejected_while_open",
-            "recovery_probe_attempts",
-            "recovery_probe_success_rate",
-            "recovered",
-        ])
+        writer.writerow(
+            [
+                "scenario",
+                "failure_threshold",
+                "recovery_timeout_s",
+                "time_to_detect_ms",
+                "time_to_switch_ms",
+                "requests_failed_before_open",
+                "requests_rejected_while_open",
+                "recovery_probe_attempts",
+                "recovery_probe_success_rate",
+                "recovered",
+            ]
+        )
 
         for result in all_results:
             events = result["events"]
@@ -255,36 +277,38 @@ if __name__ == "__main__":
             if open_time and closed_time:
                 time_to_switch = (closed_time - open_time) * 1000
 
-            probe_rate = (
-                probe_successes / probe_attempts if probe_attempts else 0.0
-            )
+            probe_rate = probe_successes / probe_attempts if probe_attempts else 0.0
             recovered = 1 if closed_time is not None else 0
 
-            writer.writerow([
-                result["scenario"],
-                events[0].get("failure_threshold", ""),
-                events[0].get("recovery_timeout", ""),
-                round(time_to_detect, 1),
-                round(time_to_switch, 1),
-                failed_before_open,
-                rejected_while_open,
-                probe_attempts,
-                round(probe_rate, 4),
-                recovered,
-            ])
+            writer.writerow(
+                [
+                    result["scenario"],
+                    events[0].get("failure_threshold", ""),
+                    events[0].get("recovery_timeout", ""),
+                    round(time_to_detect, 1),
+                    round(time_to_switch, 1),
+                    failed_before_open,
+                    rejected_while_open,
+                    probe_attempts,
+                    round(probe_rate, 4),
+                    recovered,
+                ]
+            )
 
     # Write detailed event timeline for chart generation
     timeline_file = Path("data/evidence/fallback_timeline_events.csv")
     with open(timeline_file, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            "scenario",
-            "relative_time_ms",
-            "event",
-            "circuit_state",
-            "provider",
-            "details"
-        ])
+        writer.writerow(
+            [
+                "scenario",
+                "relative_time_ms",
+                "event",
+                "circuit_state",
+                "provider",
+                "details",
+            ]
+        )
 
         for result in all_results:
             scenario = result["scenario"]
@@ -294,14 +318,18 @@ if __name__ == "__main__":
             base_time = events[0]["timestamp"]
             for e in events:
                 rel_time = (e["timestamp"] - base_time) * 1000
-                writer.writerow([
-                    scenario,
-                    round(rel_time, 1),
-                    e["event"],
-                    e.get("circuit_state", ""),
-                    e.get("provider", ""),
-                    e.get("error", "") or str(e.get("poll_count", "")) or str(e.get("recovery_time_seconds", ""))
-                ])
+                writer.writerow(
+                    [
+                        scenario,
+                        round(rel_time, 1),
+                        e["event"],
+                        e.get("circuit_state", ""),
+                        e.get("provider", ""),
+                        e.get("error", "")
+                        or str(e.get("poll_count", ""))
+                        or str(e.get("recovery_time_seconds", "")),
+                    ]
+                )
 
     print(f"\nResults written to {out_file}")
     print(f"CSV evidence written to {csv_file}")

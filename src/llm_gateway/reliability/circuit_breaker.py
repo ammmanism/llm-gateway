@@ -16,19 +16,21 @@ class CircuitOpenError(Exception):
     def __init__(self, provider: str, retry_after: float):
         self.provider = provider
         self.retry_after = retry_after
-        super().__init__(f"Circuit breaker OPEN for {provider}. Retry after {retry_after:.1f}s")
+        super().__init__(
+            f"Circuit breaker OPEN for {provider}. Retry after {retry_after:.1f}s"
+        )
 
 
 class CircuitBreaker:
     """
     Implements the Circuit Breaker pattern with three states: CLOSED, OPEN, HALF_OPEN.
-    
+
     State transitions:
     - CLOSED -> OPEN: When failure_count >= failure_threshold
     - OPEN -> HALF_OPEN: After recovery_timeout seconds
     - HALF_OPEN -> CLOSED: On successful probe request
     - HALF_OPEN -> OPEN: On failed probe request
-    
+
     In HALF_OPEN state, only max_half_open_probes concurrent requests are allowed.
     """
 
@@ -55,10 +57,10 @@ class CircuitBreaker:
     def allow_request(self) -> bool:
         """
         Check if a request is allowed based on the current circuit state.
-        
+
         Returns:
             True if the request should proceed, False if it should be blocked.
-            
+
         Raises:
             CircuitOpenError: If the circuit is OPEN and request should fail fast.
         """
@@ -71,7 +73,9 @@ class CircuitBreaker:
                     self.state = CircuitState.HALF_OPEN
                     self._half_open_probes = 1  # First probe counts
                     return True
-                retry_after = self.recovery_timeout - (self._clock() - self.last_failure_time)
+                retry_after = self.recovery_timeout - (
+                    self._clock() - self.last_failure_time
+                )
                 raise CircuitOpenError(self.name, retry_after)
 
             else:  # HALF_OPEN
@@ -82,7 +86,7 @@ class CircuitBreaker:
 
     def record_success(self) -> None:
         """
-        Record a successful request. 
+        Record a successful request.
         In HALF_OPEN state, a single success closes the circuit.
         In CLOSED state, resets the failure count.
         """
@@ -96,7 +100,7 @@ class CircuitBreaker:
 
     def record_failure(self) -> None:
         """
-        Record a failed request. 
+        Record a failed request.
         May trip the circuit if threshold exceeded in CLOSED state.
         In HALF_OPEN state, immediately re-opens the circuit.
         """

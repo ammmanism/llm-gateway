@@ -23,7 +23,9 @@ class BudgetEnforcer:
             else float(configured_budget or 10.0)
         )
         self.redis_url = os.environ.get("REDIS_URL")
-        self.redis_ttl_seconds = int(os.environ.get("BUDGET_REDIS_TTL_SECONDS", "2592000"))
+        self.redis_ttl_seconds = int(
+            os.environ.get("BUDGET_REDIS_TTL_SECONDS", "2592000")
+        )
         self._redis: Optional[redis.Redis] = None
         self._connected = False
 
@@ -90,11 +92,13 @@ class BudgetEnforcer:
             # Atomic float increment via redis INCRBYFLOAT
             await self._redis.incrbyfloat(f"budget:{tenant_id}:spent", cost)
             # Ensure it expires after 30 days (simplified monthly budget)
-            await self._redis.expire(f"budget:{tenant_id}:spent", self.redis_ttl_seconds)
+            await self._redis.expire(
+                f"budget:{tenant_id}:spent", self.redis_ttl_seconds
+            )
         else:
             if tenant_id not in self._spending:
                 self._spending[tenant_id] = 0.0
             self._spending[tenant_id] += cost
 
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
 
+# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern

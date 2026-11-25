@@ -2,20 +2,26 @@
 """
 Measure additional latency introduced by modality detection and routing logic.
 """
+
 import json
 import time
 from pathlib import Path
 
+
 def detect_content_type(content):
     if content.startswith("![image]") or content.startswith("data:image"):
         return "image"
-    if content.startswith("http") and any(ext in content for ext in [".mp4", ".avi", ".mov"]):
+    if content.startswith("http") and any(
+        ext in content for ext in [".mp4", ".avi", ".mov"]
+    ):
         return "video"
     return "text"
+
 
 def route_to_modality(content_type, content):
     _ = (content_type, content)
     return content_type
+
 
 def simulate_request(content, use_routing=True):
     start = time.perf_counter()
@@ -23,6 +29,7 @@ def simulate_request(content, use_routing=True):
         content_type = detect_content_type(content)
         route_to_modality(content_type, content)
     return time.perf_counter() - start
+
 
 if __name__ == "__main__":
     samples = [

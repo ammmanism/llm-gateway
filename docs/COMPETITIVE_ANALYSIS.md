@@ -46,7 +46,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 | MCP gateway | ➖ | ➖ | ❔ | ✅ |
 | Managed UI / control plane | ➖ | 🟡 admin UI | ✅ | ✅ web UI |
 | Committed, reproducible evidence artifacts | ✅ every claim maps to a CSV + script | ❔ | ❔ | ❔ |
-| Test suite | ✅ 69 passing (`pytest tests/ -q`) | ✅ | ✅ | ✅ |
+| Test suite | ✅ 79 passing with Redis (`pytest tests/ -q`) | ✅ | ✅ | ✅ |
 
 ## What is genuinely differentiated here
 
@@ -70,19 +70,19 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 - **Provider coverage.** Eight adapters versus dozens to hundreds. Adding a
   provider here means writing and testing an adapter.
 - **Deployment maturity.** No Helm chart, no multi-region story, no managed
-  control plane. The Redis paths exist but the evidence runs use the in-process
-  fallbacks.
-- **Distributed consistency.** The FAISS semantic index and the in-memory rate
-  limiter are per process. Multi-worker deployments need the Redis/Valkey-backed
-  paths, which this repo does not load-test.
+  control plane. The Redis paths now have a two-worker consistency check, but
+  not a high-scale load test.
+- **Distributed consistency.** The FAISS semantic index is per process.
+  Multi-replica semantic caching needs a shared vector store; exact caching,
+  RPM/TPM limiting, and budget counters can use Redis.
 - **Auth.** The API-key middleware is a demonstration: it checks a prefix and
   maps keys to tenants via `TENANT_API_KEYS`. It is not a virtual-key database
   with rotation, scopes, or per-key budgets.
 - **Guardrails.** Regex PII detection only. Portkey's guardrail catalogue and
   Bifrost's MCP gateway are out of scope here.
-- **Lint and coverage.** `ruff check .` is still red on pre-existing
-  long-line/whitespace debt, and coverage is not currently measured. Both are
-  tracked in `GAP_ANALYSIS.md`.
+- **Coverage.** Branch coverage is **48.42%**. Ruff lint and formatting are green,
+  and CI publishes the full coverage report; raising coverage toward 80% is the
+  next quality goal.
 
 ## When to choose which
 

@@ -4,7 +4,7 @@ This is the honest scorecard for the five-phase overhaul. "Done" means the
 artifact exists **and** its evidence file is committed. A missing screenshot or
 an unrun integration is listed here rather than papered over.
 
-_Last updated: 2026-11-24._
+_Last updated: 2026-11-25._
 
 ## Phase status
 
@@ -12,7 +12,7 @@ _Last updated: 2026-11-24._
 |---|---|---|---|
 | 1 | Resilience, dual-metric limits, observability | ✅ Done | `fallback_recovery.csv`, `fallback_timeline_events.csv`, `fallback_trigger_matrix.csv`, `prometheus_metrics_snapshot.txt`, `deploy/grafana/llm_gateway_dashboard.json`, `docs/evidence/figures/grafana_dashboard.png` |
 | 2 | Exact + semantic cache, cost ledger | ✅ Done | `cost_ledger_sample.csv`, `semantic_threshold_sweep.csv`, `tests/billing`, `tests/cache/test_two_tier_cache.py` |
-| 3 | Reproducible performance evidence | ✅ Done | `gateway_overhead_benchmark.csv`, `semantic_threshold_sweep.csv`, `fallback_recovery.csv`, three PNG figures |
+| 3 | Reproducible performance evidence | ✅ Done | `gateway_overhead_benchmark.csv`, `semantic_threshold_sweep.csv`, `fallback_recovery.csv`, four PNG figures |
 | 4 | README + competitive analysis | ✅ Done | `README.md`, `docs/COMPETITIVE_ANALYSIS.md`, `docs/evidence/figures/*.png` |
 | 5 | Gap analysis + lessons + audit | ✅ Done | this file, `docs/LESSONS.md` |
 
@@ -31,59 +31,65 @@ the third column regenerates it.
 | `data/evidence/cost_ledger_sample.csv` | Four provider rows + one cache-hit row at $0 from the real SQLite ledger | `benchmarks/cost_attribution_demo.py` |
 | `data/evidence/prometheus_metrics_snapshot.txt` | Real `/metrics` exposition with requests, cache hits/misses, cost, tokens | `benchmarks/metrics_snapshot.py` |
 | `docs/evidence/figures/grafana_dashboard.png` | Live Grafana dashboard populated by the running gateway (request rate, cache ratio, latency, cost, fallbacks, rate limits) | `deploy/observability/docker-compose.yml` + `benchmarks/capture_grafana.py` |
+| `data/evidence/otel_span_sample.csv` | Real OTLP collector export with provider/model/token/cost/latency/cache attributes | `deploy/observability/otel-collector-config.yaml` + `benchmarks/otel_span_summary.py` |
+| `data/evidence/redis_consistency.csv` | Two workers share RPM limits and exact cache; concurrent budget increments sum exactly | `benchmarks/redis_consistency.py` |
+| `data/evidence/coverage_summary.csv` | Real statement/branch coverage by module | `pytest --cov` + `benchmarks/coverage_summary.py` |
 | `docs/evidence/figures/gateway_overhead.png` | Chart of the overhead CSV | `benchmarks/plot_evidence.py` |
 | `docs/evidence/figures/semantic_threshold_tradeoff.png` | Chart of the sweep CSV | `benchmarks/plot_evidence.py` |
 | `docs/evidence/figures/fallback_recovery_timeline.png` | Chart of the timeline CSV | `benchmarks/plot_evidence.py` |
 
 ## Open gaps
 
-### High priority
-
-1. **Trace export is unverified end-to-end.** Spans are created and attributes
-   are set, and `OTEL_EXPORTER_OTLP_ENDPOINT` is honoured, but tests log
-   `UNAVAILABLE: localhost:4317` because no collector is running. The span
-   plumbing is covered by code and tests; the export path is not.
-2. **Repo-wide lint is red.** `python -m ruff check .` fails on pre-existing
-   line-length (`E501`) and whitespace (`W291`/`W293`) debt, especially
-   `core/server.py`. New Phase 2/3 files pass a focused `ruff` check. Next step:
-   format the legacy files in an isolated commit.
-3. **Coverage is not measured.** The old README claimed 42%; that number is
-   removed. Next step: add `pytest-cov` and commit a real report.
-
 ### Medium priority
 
-4. **Redis paths are not load-tested.** Rate limiting, budgets, and the exact
-   cache all have in-memory fallbacks that the evidence runs use. The Redis/Lua
-   paths exist and are unit-tested where practical, but there is no multi-worker
-   evidence.
-5. **Semantic cache is per process.** The FAISS index is in-process. Production
+1. **Branch coverage is 48.42%.** The report is real and committed, and CI
+   publishes HTML/XML artifacts, but coverage is below a production-oriented
+   target. Next step: add provider-adapter, fallback-policy, and streaming tests.
+2. **Semantic cache is per process.** The FAISS index is in-process. Production
    multi-replica deployments need a shared vector store or an external cache.
-6. **Provider usage passthrough is uneven.** OpenAI, Anthropic, Gemini, and
-   Together propagate usage; other adapters fall back to the explicit
-   `usage_source="estimated"` path. This is labelled, not hidden.
-7. **Auth is a demonstration.** `APIKeyAuthMiddleware` validates an `sk-` prefix
+3. **Auth is a demonstration.** `APIKeyAuthMiddleware` validates an `sk-` prefix
    and maps keys to tenants via `TENANT_API_KEYS`. It is not a virtual-key
    database with rotation and scopes.
+4. **Redis evidence is correctness, not scale.** A two-worker check proves shared
+   RPM/TPM state, exact-cache visibility, and budget aggregation. It is not a
+   high-concurrency load test.
 
 ### Low priority / non-goals
 
-8. **No managed UI.** There is no Next.js control plane in the evidence path.
-9. **No MCP gateway, no guardrail catalogue.** Out of scope; see
+5. **No managed UI.** There is no Next.js control plane in the evidence path.
+6. **No MCP gateway, no guardrail catalogue.** Out of scope; see
    `docs/COMPETITIVE_ANALYSIS.md`.
-10. **Benchmarks use a deterministic fake provider.** This isolates gateway
-    overhead from provider network variance. It is not a claim about real
-    provider latency or spend.
+7. **Benchmarks use a deterministic fake provider.** This isolates gateway
+   overhead from provider network variance. It is not a claim about real
+   provider latency or spend.
+
+## Closed during the quality pass
+
+- Repo-wide Ruff lint and formatting are green.
+- Coverage is measured with branch data and published by CI.
+- OTLP export was verified through a real OpenTelemetry Collector.
+- Redis paths were verified with two independent worker processes.
+- Provider usage normalization is covered for OpenAI/Anthropic/Gemini/Together,
+  Groq, Ollama, and vLLM response shapes.
+- CI runs the full test suite and the real evidence generators instead of stale
+  benchmark JSON.
 
 ## Test and lint status (actual)
 
 ```
 python -m pytest tests/ -q
-69 passed, 11 warnings
+79 passed, 8 warnings in 61.02s (0:01:01)
 ```
 
 ```
-python -m ruff check .        # expected red (pre-existing debt)
+python -m ruff check .
+All checks passed!
+
+python -m ruff format --check .
+150 files already formatted
 ```
+
+Branch coverage: **48.42%** (`data/evidence/coverage_summary.csv`).
 
 `tests/modality` was quarantined to `_superseded/tests-modality/` with a README
 explaining that it targets removed `SemanticRouter` / `CostOptimizer` /

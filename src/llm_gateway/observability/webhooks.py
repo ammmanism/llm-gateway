@@ -1,9 +1,11 @@
-import httpx
-import logging
 import asyncio
-from typing import Dict, Any, Optional
+import logging
+from typing import Any, Dict
+
+import httpx
 
 logger = logging.getLogger("cost_aware_llm.webhooks")
+
 
 class WebhookManager:
     def __init__(self):
@@ -22,13 +24,13 @@ class WebhookManager:
         """Fire an event to all registered webhook endpoints."""
         if event_type not in self.endpoints:
             return
-            
+
         urls = self.endpoints[event_type]
         if not urls:
             return
 
         payload["event"] = event_type
-        
+
         async def send_webhook(url: str):
             try:
                 response = await self.client.post(url, json=payload)
@@ -40,6 +42,7 @@ class WebhookManager:
         # Fire and forget
         tasks = [send_webhook(url) for url in urls]
         await asyncio.gather(*tasks, return_exceptions=True)
+
 
 # Global webhook manager
 webhook_manager = WebhookManager()

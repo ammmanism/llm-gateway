@@ -1,23 +1,19 @@
-# Architecture
+# Active cache architecture
 
-Neurocache is built with a modern, async-first Python stack using FastAPI and OpenTelemetry.
+The active implementation is `src/llm_gateway/cache/two_tier.py`.
 
-## Components
+1. **Exact tier** — SHA-256 of the prompt plus a namespace hash over tenant,
+   model, and generation parameters. Values live in Redis when `REDIS_URL` is
+   configured, otherwise in a TTL-aware in-process dictionary.
+2. **Semantic tier** — a per-namespace FAISS HNSW index using inner product over
+   normalized embeddings. The default embedder is
+   `sentence-transformers/all-MiniLM-L6-v2`; a deterministic hashing embedder is
+   used when the optional model is unavailable.
+3. **Lookup order** — exact first, then semantic. A semantic hit must meet the
+   configured threshold and be unexpired.
+4. **Bypass** — `live_data=true` skips both reads and writes.
 
-1.  **FastAPI Gateway**: Handles incoming requests, auth, rate limiting, and routing.
-2.  **Semantic Cache Layer**:
-    *   **FAISS**: In-memory HNSW index for ultra-fast vector similarity search.
-    *   **Redis**: Hot cache for storing the actual JSON responses and TTL management.
-    *   **PostgreSQL (pgvector)**: Persistent storage for all cache entries, used for cold-start recovery and analytics.
-3.  **Smart Router**: Evaluates providers based on EWMA of latency, error rates, and static costs.
-4.  **Billing & Observability**: Tracks every request, calculates savings, and exports traces to Jaeger and metrics to Prometheus.
-
-## Request Flow
-1. Middleware validates API Key and Rate Limits.
-2. Query is embedded using local `all-MiniLM-L6-v2`.
-3. FAISS searches for nearest neighbors.
-4. If hit (cosine similarity > threshold) AND metadata hash matches, return from Redis.
-5. If miss, Smart Router selects best provider.
-6. Request sent to provider.
-7. Response returned to user.
-8. Background task updates FAISS, Redis, and Postgres.
+The legacy PostgreSQL/pgvector `SemanticCache` still exists under
+`src/llm_gateway/cache/semantic.py`, but it is not the active two-tier lookup
+path. See `docs/evidence/architecture/caching_design.md` for the verified design
+and `data/evidence/semantic_threshold_sweep.csv` for measured trade-offs.

@@ -4,6 +4,7 @@ Compare cost-aware router vs round-robin on latency and total cost.
 Uses the real CostAwareRouter from llm_gateway.routing.cost_aware for model
 selection, then simulates provider-level latency/cost per selected model.
 """
+
 import asyncio
 import json
 import random
@@ -50,7 +51,12 @@ async def run_round_robin(models, queries, n=500):
     sorted_lat = sorted(latencies)
     p50 = sorted_lat[int(len(sorted_lat) * 0.5)] * 1000
     p99 = sorted_lat[int(len(sorted_lat) * 0.99)] * 1000
-    return {"p50_latency_ms": round(p50, 1), "p99_latency_ms": round(p99, 1), "total_cost_usd": round(total_cost, 4), "n_requests": n}
+    return {
+        "p50_latency_ms": round(p50, 1),
+        "p99_latency_ms": round(p99, 1),
+        "total_cost_usd": round(total_cost, 4),
+        "n_requests": n,
+    }
 
 
 async def run_cost_aware(router, queries, n=500):
@@ -58,7 +64,9 @@ async def run_cost_aware(router, queries, n=500):
     latencies = []
     total_cost = 0.0
     for q in queries[:n]:
-        models = await router.select_models({"allowed_models": list(PROVIDER_LATENCY.keys())})
+        models = await router.select_models(
+            {"allowed_models": list(PROVIDER_LATENCY.keys())}
+        )
         # Pick the cheapest model returned
         model = models[0]
         cost = router.model_costs.get(model, 0.0005)
@@ -71,7 +79,12 @@ async def run_cost_aware(router, queries, n=500):
     sorted_lat = sorted(latencies)
     p50 = sorted_lat[int(len(sorted_lat) * 0.5)] * 1000
     p99 = sorted_lat[int(len(sorted_lat) * 0.99)] * 1000
-    return {"p50_latency_ms": round(p50, 1), "p99_latency_ms": round(p99, 1), "total_cost_usd": round(total_cost, 4), "n_requests": n}
+    return {
+        "p50_latency_ms": round(p50, 1),
+        "p99_latency_ms": round(p99, 1),
+        "total_cost_usd": round(total_cost, 4),
+        "n_requests": n,
+    }
 
 
 async def main():

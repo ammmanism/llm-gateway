@@ -3,10 +3,13 @@ from datetime import datetime, timezone
 import pytest
 from fastapi.testclient import TestClient
 
+from llm_gateway.auth.budget_enforcer import BudgetEnforcer
 from llm_gateway.billing.cost_ledger import CostLedger
 from llm_gateway.cache.cache_manager import CacheManager
 from llm_gateway.cache.two_tier import SemanticIndex, TwoTierCache
 from llm_gateway.core import server
+from llm_gateway.routing.adaptive import AdaptiveRouter
+from llm_gateway.security.rate_limiter import RateLimiter
 from llm_gateway.utils.embeddings import HashingEmbedder
 
 AUTH = {"Authorization": "Bearer sk-test-123"}
@@ -25,6 +28,7 @@ class FakeProvider:
 
 @pytest.fixture
 def gateway(tmp_path, monkeypatch):
+    monkeypatch.delenv("REDIS_URL", raising=False)
     cache = TwoTierCache(
         exact_cache=CacheManager(),
         semantic_index=SemanticIndex(embedder=HashingEmbedder()),
@@ -33,6 +37,13 @@ def gateway(tmp_path, monkeypatch):
     ledger = CostLedger(str(tmp_path / "ledger.sqlite3"))
     monkeypatch.setattr(server, "two_tier_cache", cache)
     monkeypatch.setattr(server, "cost_ledger", ledger)
+    monkeypatch.setattr(server, "budget_enforcer", BudgetEnforcer(default_budget=100.0))
+    monkeypatch.setattr(server, "adaptive_router", AdaptiveRouter())
+    monkeypatch.setattr(
+        server,
+        "rate_limiter",
+        RateLimiter(rpm_limit=10**6, tpm_limit=10**9),
+    )
     monkeypatch.setattr(
         server.ProviderFactory,
         "get_provider_for_model",

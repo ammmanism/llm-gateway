@@ -1,35 +1,40 @@
-import time
+"""Measure in-memory adaptive-router decision throughput."""
+
+import asyncio
 import json
-import sys
+import time
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from llm_gateway.routing.adaptive import AdaptiveRouter
 
-from src.router.smart_router import smart_router
+MODELS = ["gpt-4o", "gpt-4o-mini", "claude-3-haiku-20240307"]
 
-def run_benchmark():
-    num_routes = 10000
-    
-    print(f"Running {num_routes} routing decisions...")
-    start = time.time()
-    
-    for _ in range(num_routes):
-        # Simulate varying token counts
-        smart_router.route(request_tokens=500)
-        
-    end = time.time()
-    duration = end - start
-    
+
+async def run_benchmark() -> None:
+    router = AdaptiveRouter()
+    router.redis_url = None
+    for model in MODELS:
+        await router.record_result(model, True, latency_ms=100.0)
+
+    routes = 10_000
+    start = time.perf_counter()
+    for _ in range(routes):
+        await router.select_models({})
+    duration = time.perf_counter() - start
+
     report = {
-        "benchmark": "router",
-        "routes": num_routes,
+        "benchmark": "adaptive_router",
+        "routes": routes,
         "total_seconds": round(duration, 4),
-        "average_latency_ms": round((duration / num_routes) * 1000, 4),
-        "throughput_routes_per_sec": round(num_routes / duration, 2),
+        "average_latency_ms": round(duration / routes * 1000, 4),
+        "throughput_routes_per_sec": round(routes / duration, 2),
+        "backend": "in-memory",
     }
-    Path("benchmarks/reports").mkdir(parents=True, exist_ok=True)
-    Path("benchmarks/reports/router.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    output = Path("benchmarks/reports/router.json")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
 
+
 if __name__ == "__main__":
-    run_benchmark()
+    asyncio.run(run_benchmark())

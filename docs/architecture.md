@@ -1,13 +1,19 @@
 # Architecture
 
-`llm-gateway` is a modular, event-driven LLM gateway. It consists of:
+`llm-gateway` is a modular FastAPI gateway with these active layers:
 
-1. **API Layer** - FastAPI server, handles authentication, rate limiting, PII redaction.
-2. **Routing Engine** - Multi-objective routers (cost, latency, quality) with fallback.
-3. **Caching Layer** - Two-tier: exact (Redis) and semantic (FAISS). Auto-warmer for popular queries.
-4. **Reliability Layer** - Circuit breakers, retries, self-healing health checks.
-5. **Provider Fabric** - Adapters for OpenAI, Anthropic, Gemini, Groq, Ollama, vLLM, Together.
-6. **Modality Router** - Detects content type and routes to appropriate modality handler (text, image, audio, video).
-7. **Observability** - Prometheus metrics, OpenTelemetry traces, audit logs.
+1. **API and security** — API-key/tenant mapping, structured logs, security
+   headers, PII detection, RPM/TPM limiting, quotas, and budgets.
+2. **Routing** — cost-aware, latency-aware, and Thompson-sampling adaptive
+   routers with a policy-driven fallback chain.
+3. **Caching** — exact Redis/in-memory cache followed by an in-process FAISS HNSW
+   semantic index.
+4. **Reliability** — three-state circuit breakers, retry/backoff, and health
+   monitoring.
+5. **Providers** — OpenAI, Anthropic, Gemini, Groq, Together, Ollama, and vLLM
+   adapters.
+6. **Observability** — Prometheus metrics, OpenTelemetry traces, and a per-attempt
+   SQLite cost ledger.
 
-Each component is **pluggable** - you can replace caching backends, add new providers, or implement custom routing strategies.
+The legacy multi-modal implementation is quarantined under `_superseded/`; its
+documentation is archived under `docs/archive/modality-docs/`.

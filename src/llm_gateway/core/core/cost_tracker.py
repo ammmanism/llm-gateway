@@ -54,11 +54,15 @@ class NexusCostTracker:
 
                 price_float = float(price)
                 if price_float < 0:
-                    logger.warning("Skipping model %s with negative price %s", name, price)
+                    logger.warning(
+                        "Skipping model %s with negative price %s", name, price
+                    )
                     continue
                 self.model_prices[name] = price_float
 
-            logger.info("CostTracker initialized with %s model prices", len(self.model_prices))
+            logger.info(
+                "CostTracker initialized with %s model prices", len(self.model_prices)
+            )
         except Exception as e:
             logger.error("Failed to initialize CostTracker: %s", e)
 
@@ -83,7 +87,9 @@ class NexusCostTracker:
         """Calculate cost from structured token usage."""
         return self.calculate_cost(model, usage.total_tokens)
 
-    def estimate_text_cost(self, model: str, prompt: str, completion: str = "") -> float:
+    def estimate_text_cost(
+        self, model: str, prompt: str, completion: str = ""
+    ) -> float:
         """
         Estimate cost from prompt and completion text.
 
@@ -111,5 +117,5 @@ class NexusCostTracker:
         """Return whether a model has explicit pricing configured."""
         return model in self.model_prices
 
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
 
+# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern

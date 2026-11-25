@@ -1,0 +1,2 @@
+trace_id,span_id,service_name,environment,span_name,status_code,tenant_id,provider,model,prompt_tokens,completion_tokens,cost_usd,latency_ms,cache_hit
+d7ab15ac448cc128941ebba98eda308b,495313ed629538d2,llm-gateway,evidence,generate_request,1,default,openai,gpt-4o,6,11,1.7000000000000003e-05,106.20729997754097,False

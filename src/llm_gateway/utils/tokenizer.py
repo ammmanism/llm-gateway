@@ -1,5 +1,7 @@
+from typing import Any, Dict, List
+
 import tiktoken
-from typing import List, Dict, Any
+
 
 def count_tokens(model: str, text: str) -> int:
     """
@@ -18,6 +20,7 @@ def count_tokens(model: str, text: str) -> int:
         # Fallback to simple 4 characters per token estimate
         return max(1, len(text) // 4)
 
+
 def count_message_tokens(model: str, messages: List[Dict[str, Any]]) -> int:
     """
     Estimate tokens in a chat prompt list.
@@ -29,10 +32,12 @@ def count_message_tokens(model: str, messages: List[Dict[str, Any]]) -> int:
             encoding = tiktoken.encoding_for_model(model)
         except KeyError:
             encoding = tiktoken.get_encoding("cl100k_base")
-            
+
         num_tokens = 0
         for message in messages:
-            num_tokens += 4  # every message follows <im_start><role/name>\n<content><im_end>\n
+            num_tokens += (
+                4  # every message follows <im_start><role/name>\n<content><im_end>\n
+            )
             for key, value in message.items():
                 if isinstance(value, str):
                     num_tokens += len(encoding.encode(value))

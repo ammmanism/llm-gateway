@@ -10,16 +10,20 @@ from llm_gateway.reliability.retry import retry
 
 logger = logging.getLogger(__name__)
 
+
 class AnthropicProvider(BaseProvider):
     """
     Provider implementation for Anthropic's Claude Messages API.
-    
-    Optimized for Claude-3 models with native streaming support and 
+
+    Optimized for Claude-3 models with native streaming support and
     automated retries.
     """
+
     def __init__(self):
         self.api_key = os.environ.get("ANTHROPIC_API_KEY")
-        self.circuit_breaker = CircuitBreaker(failure_threshold=3, recovery_timeout=30, name="anthropic")
+        self.circuit_breaker = CircuitBreaker(
+            failure_threshold=3, recovery_timeout=30, name="anthropic"
+        )
         self.default_model = "claude-3-haiku-20240307"
 
     @retry(max_retries=2, backoff_factor=1.0)
@@ -45,27 +49,28 @@ class AnthropicProvider(BaseProvider):
                     "model": model,
                     "output": output,
                     "status": "success",
-                    "mock": True
+                    "mock": True,
                 }
 
             import httpx
+
             headers = {
                 "x-api-key": self.api_key,
                 "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
+                "content-type": "application/json",
             }
             payload = {
                 "model": model,
                 "max_tokens": kwargs.get("max_tokens", 1024),
                 "messages": [{"role": "user", "content": prompt}],
-                "stream": False
+                "stream": False,
             }
 
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
                     "https://api.anthropic.com/v1/messages",
                     json=payload,
-                    headers=headers
+                    headers=headers,
                 )
                 response.raise_for_status()
                 data = response.json()
@@ -80,7 +85,7 @@ class AnthropicProvider(BaseProvider):
                     "input_tokens": data.get("usage", {}).get("input_tokens", 0),
                     "output_tokens": data.get("usage", {}).get("output_tokens", 0),
                 },
-                "status": "success"
+                "status": "success",
             }
         except Exception as e:
             self.circuit_breaker.record_failure()
@@ -107,16 +112,17 @@ class AnthropicProvider(BaseProvider):
                 return
 
             import httpx
+
             headers = {
                 "x-api-key": self.api_key,
                 "anthropic-version": "2023-06-01",
-                "content-type": "application/json"
+                "content-type": "application/json",
             }
             payload = {
                 "model": model,
                 "max_tokens": kwargs.get("max_tokens", 1024),
                 "messages": [{"role": "user", "content": prompt}],
-                "stream": True
+                "stream": True,
             }
 
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -124,7 +130,7 @@ class AnthropicProvider(BaseProvider):
                     "POST",
                     "https://api.anthropic.com/v1/messages",
                     json=payload,
-                    headers=headers
+                    headers=headers,
                 ) as response:
                     response.raise_for_status()
                     async for line in response.aiter_lines():

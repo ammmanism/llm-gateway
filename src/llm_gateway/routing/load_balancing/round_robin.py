@@ -1,13 +1,15 @@
-from typing import List, Any
 import itertools
+from typing import Any, List
+
 
 class RoundRobinBalancer:
     """
     Standard load balancer that cycles through available providers sequentially.
-    
-    This is the simplest load balancing strategy, distributing requests 
+
+    This is the simplest load balancing strategy, distributing requests
     evenly across all providers regardless of their current load.
     """
+
     def __init__(self, providers: List[Any] = None):
         self.providers = providers or []
         self._cycle = itertools.cycle(self.providers) if self.providers else None
@@ -23,5 +25,5 @@ class RoundRobinBalancer:
             return None
         return next(self._cycle)
 
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
 
+# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern

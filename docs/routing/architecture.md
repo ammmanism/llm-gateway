@@ -1,27 +1,18 @@
-# Architecture
+# Routing architecture
 
-The LLM Gateway is designed to provide a unified API layer over multiple LLM providers.
+The active request path is:
 
-## Components
+1. FastAPI middleware validates the API key and attaches a tenant.
+2. The firewall validates and sanitizes the prompt.
+3. `RateLimiter` atomically reserves RPM and TPM capacity (Redis Lua or memory).
+4. Quota and budget checks run before provider dispatch.
+5. A router selects an ordered model list:
+   - `CostAwareRouter` for cost constraints,
+   - `LatencyAwareRouter` for latency constraints,
+   - `AdaptiveRouter` for Thompson-sampling selection.
+6. The two-tier cache is checked before generation.
+7. The fallback policy advances only for 429/5xx errors or an open circuit.
+8. Provider usage, cost, metrics, traces, and ledger rows are recorded per
+   attempt.
 
-1. **FastAPI Server**: Handles incoming HTTP requests.
-2. **Middleware**:
-   - `AuthMiddleware`: Validates API keys.
-   - `RateLimitMiddleware`: Prevents abuse.
-   - `LoggingMiddleware`: Records request details.
-3. **Routers**:
-   - `CostAwareRouter`: Minimizes token costs.
-   - `LatencyAwareRouter`: Minimizes response time.
-   - `FallbackRouter`: Ensures high availability.
-4. **Caching Layer**:
-   - In-memory Exact Cache.
-   - Semantic Cache (Redis/Vector Store).
-5. **Resiliency Layer**:
-   - `CircuitBreaker`: Stops requests to failing providers.
-   - `Retry`: Exponential backoff for transient errors.
-6. **Multi-tenancy**:
-   - `QuotaManager`: Limits total requests per user.
-   - `BudgetEnforcer`: Limits spend per user.
-
-# Nexus-Standard: Verified Type Safety and Professional Documentation Pattern
-
+See `docs/tradeoffs.md` and `docs/evidence/architecture/` for verified details.
