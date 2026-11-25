@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import logging
@@ -40,6 +41,7 @@ from llm_gateway.core.openai_compat import (
     completion_id,
     completion_response,
     flatten_messages,
+    openai_sse,
 )
 from llm_gateway.observability.logging_middleware import StructuredLoggingMiddleware
 from llm_gateway.observability.metrics.cost_metrics import record_cost
@@ -77,6 +79,7 @@ from llm_gateway.security.firewall import SentinelFirewall
 from llm_gateway.security.headers import SecurityHeadersMiddleware
 from llm_gateway.security.rate_limiter import RateLimiter
 from llm_gateway.utils.template_manager import template_manager
+from llm_gateway.utils.tokenizer import count_tokens
 from llm_gateway.utils.usage import extract_token_usage
 
 # Configure logging
@@ -696,12 +699,187 @@ async def generate(request: GenerateRequest, req: Request):
     raise HTTPException(status_code=503, detail=f"All providers failed: {last_error}")
 
 
+async def _prepare_stream(request: GenerateRequest, req: Request) -> dict:
+    if hasattr(req.state, "tenant_id"):
+        request.tenant_id = req.state.tenant_id
+    limit_scope, limiter, budget = _request_limiters(req, request.tenant_id)
+
+    prompt_text = request.prompt
+    if request.template_id:
+        try:
+            prompt_text = template_manager.render(
+                request.template_id, request.variables or {}
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc))
+    if not prompt_text:
+        raise HTTPException(
+            status_code=400, detail="Either prompt or template_id is required"
+        )
+
+    valid, error = SentinelFirewall.validate(prompt_text, request.tenant_id)
+    if not valid:
+        record_failure(request.tenant_id, "validation")
+        raise HTTPException(status_code=400, detail=error)
+    prompt = SentinelFirewall.sanitize(prompt_text)
+
+    if request.model:
+        models = [request.model]
+    else:
+        models = await adaptive_router.select_models({"prompt": prompt})
+    if not models:
+        raise HTTPException(status_code=503, detail="No models available for stream")
+    model = models[0]
+
+    estimated_tokens = count_tokens(model, prompt) + request.max_tokens
+    limit = await limiter.check_and_reserve(
+        limit_scope, estimated_tokens=estimated_tokens
+    )
+    if not limit.allowed:
+        record_failure(request.tenant_id, "rate_limit")
+        record_rate_limit_rejection(request.tenant_id, limit.limit_exceeded)
+        raise HTTPException(
+            status_code=429,
+            detail=f"{limit.limit_exceeded.upper()} rate limit exceeded",
+        )
+
+    estimated_cost = cost_tracker.estimate_text_cost(model, prompt)
+    reservation = await budget.reserve_budget(limit_scope, estimated_cost)
+    if not reservation.allowed:
+        await limiter.release_reservation(limit_scope, estimated_tokens)
+        record_failure(request.tenant_id, "budget")
+        record_budget_rejection(request.tenant_id)
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"Budget exceeded; remaining budget is ${reservation.remaining_usd:.4f}"
+            ),
+        )
+
+    provider = ProviderFactory.get_provider_for_model(model)
+    if provider is None:
+        await budget.release_cost(limit_scope, estimated_cost)
+        await limiter.release_reservation(limit_scope, estimated_tokens)
+        raise HTTPException(status_code=503, detail=f"No provider for {model}")
+
+    return {
+        "request": request,
+        "prompt": prompt,
+        "model": model,
+        "provider": provider,
+        "limit_scope": limit_scope,
+        "limiter": limiter,
+        "budget": budget,
+        "estimated_tokens": estimated_tokens,
+        "estimated_cost": estimated_cost,
+        "reservation": reservation,
+        "request_id": getattr(req.state, "request_id", None) or str(uuid.uuid4()),
+    }
+
+
+async def _stream_generation(prepared: dict):
+    request = prepared["request"]
+    prompt = prepared["prompt"]
+    model = prepared["model"]
+    provider = prepared["provider"]
+    limiter = prepared["limiter"]
+    budget = prepared["budget"]
+    scope = prepared["limit_scope"]
+    rate_settled = False
+    budget_settled = False
+    full_output = []
+    start = time.perf_counter()
+
+    with otel_trace.get_tracer(__name__).start_as_current_span(
+        "stream_generation"
+    ) as span:
+        span.set_attribute("tenant_id", request.tenant_id)
+        span.set_attribute("model", model)
+        span.set_attribute("provider", provider.__class__.__name__)
+        span.set_attribute("streaming", True)
+        try:
+            async for chunk in provider.stream_generate(
+                prompt=prompt,
+                model=model,
+                max_tokens=request.max_tokens,
+                temperature=request.temperature,
+            ):
+                full_output.append(chunk)
+                yield {"type": "content", "content": chunk}
+
+            output = "".join(full_output)
+            prompt_tokens = count_tokens(model, prompt)
+            completion_tokens = count_tokens(model, output)
+            actual_tokens = prompt_tokens + completion_tokens
+            await limiter.reconcile_tokens(
+                scope,
+                estimated_tokens=prepared["estimated_tokens"],
+                actual_tokens=actual_tokens,
+            )
+            rate_settled = True
+            cost = cost_tracker.calculate_cost(model, actual_tokens)
+            spent = await budget.reconcile_cost(scope, prepared["estimated_cost"], cost)
+            budget_settled = True
+
+            latency = (time.perf_counter() - start) * 1000
+            provider_name = provider.__class__.__name__
+            record_latency(request.tenant_id, model, provider_name, latency)
+            record_tokens(request.tenant_id, model, prompt_tokens, completion_tokens)
+            record_cost_metric(request.tenant_id, model, provider_name, cost)
+            record_request(request.tenant_id, model, provider_name, "success")
+            record_cache_miss(request.tenant_id)
+            record_cost(request.tenant_id, model, provider_name, cost)
+            update_budget_remaining(
+                request.tenant_id, max(0.0, budget.default_budget - spent)
+            )
+            await quota_manager.consume(request.tenant_id, tokens=completion_tokens)
+            await adaptive_router.record_result(model, True, latency, cost)
+            await cost_ledger.record(
+                new_entry(
+                    request_id=prepared["request_id"],
+                    attempt=0,
+                    tenant_id=request.tenant_id,
+                    provider=provider_name,
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    cost_usd=cost,
+                    cache_hit=False,
+                    usage_source="estimated",
+                )
+            )
+            span.set_attribute("cache_hit", False)
+            span.set_attribute("prompt_tokens", prompt_tokens)
+            span.set_attribute("completion_tokens", completion_tokens)
+            span.set_attribute("cost_usd", cost)
+            span.set_attribute("latency_ms", latency)
+            yield {
+                "type": "usage",
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+            }
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            logger.error("Stream failed for %s: %s", model, exc)
+            record_failure(request.tenant_id, "stream_failed")
+            record_request(
+                request.tenant_id, model, provider.__class__.__name__, "error"
+            )
+            span.set_attribute("error.type", "stream_failed")
+            span.set_attribute("error.message", str(exc))
+            await adaptive_router.record_result(model, False, 5000, 0.0)
+            yield {"type": "error", "message": str(exc)}
+        finally:
+            if not budget_settled:
+                await budget.release_cost(scope, prepared["estimated_cost"])
+            if not rate_settled:
+                await limiter.release_reservation(scope, prepared["estimated_tokens"])
+
+
 @app.post("/v1/chat/completions")
 async def chat_completions(request: ChatCompletionRequest, req: Request):
     """OpenAI-compatible non-streaming chat completion endpoint."""
-    if request.stream:
-        raise HTTPException(status_code=400, detail="Streaming is not enabled yet")
-
     gateway_request = GenerateRequest(
         prompt=flatten_messages(request.messages),
         model=request.model,
@@ -709,8 +887,14 @@ async def chat_completions(request: ChatCompletionRequest, req: Request):
         max_tokens=request.effective_max_tokens,
         use_cache=True,
         live_data=False,
-        stream=False,
+        stream=request.stream,
     )
+    if request.stream:
+        prepared = await _prepare_stream(gateway_request, req)
+        return StreamingResponse(
+            openai_sse(_stream_generation(prepared), request.model),
+            media_type="text/event-stream",
+        )
     result = await generate(gateway_request, req)
     return JSONResponse(
         completion_response(
