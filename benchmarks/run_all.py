@@ -16,6 +16,7 @@ SCRIPTS = [
     "metrics_snapshot.py",
     "redis_consistency.py",
     "budget_atomic_race.py",
+    "streaming_accounting.py",
 ]
 
 RESULTS_DIR = Path("benchmarks/results")
