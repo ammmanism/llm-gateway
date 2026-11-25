@@ -31,7 +31,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 |---|---|---|---|---|
 | Language / runtime | Python (FastAPI) | Python proxy | TypeScript/Node gateway | Go binary |
 | Provider breadth | 8 adapters (OpenAI, Anthropic, Gemini, Groq, Together, Ollama, vLLM, DeepSeek) | 100+ providers | 250+ models (1,600+ claimed) | 25+ providers |
-| OpenAI-compatible API | Partial (`/generate`, `/generate/stream`) | ✅ | ✅ | ✅ |
+| OpenAI-compatible API | ✅ `/v1/chat/completions` sync + SSE, official SDK tested | ✅ | ✅ | ✅ |
 | Fallback on 429/5xx / open circuit | ✅ YAML chain, tested | ✅ | ✅ | ✅ |
 | Circuit breaker with limited half-open probes | ✅ CLOSED/OPEN/HALF_OPEN, probe cap, tests | ✅ | ✅ | ✅ |
 | Dual-metric rate limiting (RPM + TPM) | ✅ per tenant, Redis Lua + in-memory fallback | ✅ | ✅ | ✅ |
@@ -46,7 +46,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 | MCP gateway | ➖ | ➖ | ❔ | ✅ |
 | Managed UI / control plane | ➖ | 🟡 admin UI | ✅ | ✅ web UI |
 | Committed, reproducible evidence artifacts | ✅ every claim maps to a CSV + script | ❔ | ❔ | ❔ |
-| Test suite | ✅ 116 passing with Redis + Postgres (`pytest tests/ -q`) | ✅ | ✅ | ✅ |
+| Test suite | ✅ 130 passing with Redis + Postgres (`pytest tests/ -q`) | ✅ | ✅ | ✅ |
 
 ## What is genuinely differentiated here
 
@@ -80,7 +80,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
   API or UI.
 - **Guardrails.** Regex PII detection only. Portkey's guardrail catalogue and
   Bifrost's MCP gateway are out of scope here.
-- **Coverage.** Branch coverage is **53.84%**. Ruff lint and formatting are green,
+- **Coverage.** Branch coverage is **57.13%**. Ruff lint and formatting are green,
   and CI publishes the full coverage report; raising coverage toward 80% is the
   next quality goal.
 

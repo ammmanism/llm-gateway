@@ -95,3 +95,11 @@ async def test_model_filter_and_cache_hit_count(ledger):
     assert filtered["request_count"] == 1
     assert filtered["by_model"] == {"gpt-4o-mini": pytest.approx(0.0005)}
     assert total["cache_hit_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_close_releases_sqlite_file(ledger):
+    await ledger.record(entry())
+    await ledger.close()
+
+    ledger.path.unlink()

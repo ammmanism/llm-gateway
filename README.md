@@ -4,7 +4,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/tests-116%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-130%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License">
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
@@ -41,6 +41,7 @@ still missing.
 | Distributed state is hard to trust | Two independent workers share RPM limits, exact cache, and budget totals through Redis | 10/20 requests allowed, cache shared, `$2.00` summed exactly · [CSV](data/evidence/redis_consistency.csv) |
 | Concurrent requests can overspend a hard cap | Atomic per-attempt budget reservation with reconcile/release | 200 reservations → 100 allowed, **$0.000000 overspend** · [CSV](data/evidence/budget_atomic_race.csv) |
 | Traces may be created but never exported | Real OTLP collector captures the `generate_request` span and all required attributes | [Span CSV](data/evidence/otel_span_sample.csv) · [collector config](deploy/observability/otel-collector-config.yaml) |
+| Streaming responses escape accounting | OpenAI SSE and legacy streams share token, cost, ledger, and reservation finalization | 20 sync + 20 stream requests: **100% token/cost parity** · [CSV](data/evidence/streaming_accounting.csv) |
 
 ## Measured results
 
@@ -54,11 +55,12 @@ All values are copied from committed CSVs. The scripts are in `benchmarks/`.
 | Semantic cache, threshold `0.80` | **37.5%** hit rate, **8.3%** hard-negative FP (one wrong answer) |
 | Semantic cache, threshold `0.95` (old default) | **0%** hit rate on the same 24 paraphrases |
 | Circuit breaker, 2 s recovery timeout | detect **101 ms**, recover **2049 ms**, all 5 scenarios recovered |
-| Test suite | **116 passed** with Redis + Postgres enabled (`python -m pytest tests/ -q`) |
-| Branch coverage | **53.84%** — 2,254 / 3,910 statements, 339 / 906 branches · [CSV](data/evidence/coverage_summary.csv) |
+| Test suite | **130 passed** with Redis + Postgres enabled (`python -m pytest tests/ -q`) |
+| Branch coverage | **57.13%** — 2,447 / 4,024 statements, 380 / 924 branches · [CSV](data/evidence/coverage_summary.csv) |
 | Redis consistency | 2 workers: **10/20** RPM attempts allowed, cache shared, budget total exact |
 | Atomic budget race | 200 reservations → **100 allowed**, **$0.000000 overspend** |
 | OTLP export | real collector captured `provider`, `model`, tokens, cost, latency, cache flag |
+| Streaming parity | 20 sync + 20 stream requests: identical tokens and cost, one ledger row each |
 
 The overhead is dominated by auth, validation, dual-metric rate limiting,
 routing, token accounting, eight metric updates, and the cost-ledger enqueue.
@@ -83,6 +85,7 @@ panel queries a metric that the request path actually updates.
 | **`live_data` bypass** | Skips both cache read and write for prices/inventory | [`tests/routing/integration/test_gateway_phase2.py`](tests/routing/integration/test_gateway_phase2.py) |
 | **Cost ledger + `/v1/costs`** | Idempotent SQLite ledger, batch writer, per-day/tenant/model summary | [`billing/cost_ledger.py`](src/llm_gateway/billing/cost_ledger.py) |
 | **Observability** | OTel spans (`provider`, `model`, tokens, `cost_usd`, `latency_ms`, `cache_hit`) + Prometheus `/metrics` | [`observability/`](src/llm_gateway/observability/) · [snapshot](data/evidence/prometheus_metrics_snapshot.txt) · [dashboard](docs/evidence/figures/grafana_dashboard.png) |
+| **OpenAI-compatible API** | `POST /v1/chat/completions` with official SDK support, non-streaming and SSE usage chunks | [`core/openai_compat.py`](src/llm_gateway/core/openai_compat.py) · [parity CSV](data/evidence/streaming_accounting.csv) |
 | **Virtual keys** | SHA-256 hashed keys, scopes, expiry, revocation, rotation, per-key RPM/TPM/budget; SQLite/Postgres + Redis cache | [`auth/key_store.py`](src/llm_gateway/auth/key_store.py) · [`docs/auth/virtual-keys.md`](docs/auth/virtual-keys.md) |
 | **PII firewall** | Regex detection + sanitization before routing | [`security/firewall.py`](src/llm_gateway/security/firewall.py) |
 
@@ -116,6 +119,23 @@ curl -s localhost:8000/metrics | head
 Without provider keys the gateway runs in simulation mode and marks responses
 with `"mock": true`. Routing, caching, limits, and failover are still real.
 
+```python
+import os
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:8000/v1",
+    api_key=os.environ["GATEWAY_API_KEY"],
+)
+response = client.chat.completions.create(
+    model="gpt-4o",
+    messages=[{"role": "user", "content": "Explain vector databases"}],
+)
+print(response.choices[0].message.content)
+```
+
+`GATEWAY_API_KEY` is the raw key printed during the quick-start creation step.
+
 ## Reproduce the evidence
 
 ```bash
@@ -127,6 +147,7 @@ python benchmarks/cost_attribution_demo.py   # -> data/evidence/cost_ledger_samp
 python benchmarks/metrics_snapshot.py        # -> data/evidence/prometheus_metrics_snapshot.txt
 python benchmarks/redis_consistency.py       # requires Redis; -> data/evidence/redis_consistency.csv
 python benchmarks/budget_atomic_race.py      # requires Redis; -> data/evidence/budget_atomic_race.csv
+python benchmarks/streaming_accounting.py    # -> data/evidence/streaming_accounting.csv
 python benchmarks/plot_evidence.py           # -> docs/evidence/figures/*.png
 ```
 
@@ -187,13 +208,13 @@ flowchart TD
 
 ```text
 $ python -m pytest tests/ -q
-116 passed, 8 warnings in 29.75s (0:00:29)
+130 passed, 8 warnings in 52.10s (0:00:52)
 ```
 
 With Redis enabled and branch coverage:
 
 ```text
-TOTAL  3910 statements, 1656 missed, 906 branches, 567 missed  53%
+TOTAL  4024 statements, 1577 missed, 924 branches, 544 missed  57%
 ```
 
 New coverage includes:
@@ -220,7 +241,7 @@ it targets removed APIs and is not counted above.
   budget counters use Redis when configured; a two-worker consistency check is
   committed, but this is not a high-scale load test.
 - Auth is a demonstration API-key/tenant map, not a full virtual-key database.
-- Branch coverage is **53.84%**. CI publishes the full report; raising it toward
+- Branch coverage is **57.13%**. CI publishes the full report; raising it toward
   80% is the next quality goal.
 - Benchmarks use a deterministic fake provider to isolate gateway cost from
   provider network variance. They are not claims about real provider latency.
