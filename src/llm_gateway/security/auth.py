@@ -14,12 +14,17 @@ security_scheme = HTTPBearer(auto_error=False)
 
 
 async def require_admin_api_key(
+    request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(security_scheme),
 ):
     if not credentials:
         raise HTTPException(status_code=401, detail="Missing API key")
     if not credentials.credentials.startswith("sk-"):
         raise HTTPException(status_code=401, detail="Invalid API Key")
+    if request is not None:
+        scopes = getattr(request.state, "scopes", ())
+        if scopes and "admin" not in scopes:
+            raise HTTPException(status_code=403, detail="Missing scope: admin")
     return credentials.credentials
 
 
@@ -56,10 +61,11 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
 
     async def dispatch(self, request: Request, call_next):
         path = request.url.path
-        if any(
-            path == excluded or path.startswith(excluded.rstrip("/") + "/")
-            for excluded in self.exclude_paths
-        ):
+        excluded = any(
+            path == item or path.startswith(item.rstrip("/") + "/")
+            for item in self.exclude_paths
+        )
+        if excluded and not path.startswith("/admin"):
             return await call_next(request)
 
         auth_header = request.headers.get("Authorization")
@@ -97,7 +103,9 @@ class APIKeyAuthMiddleware(BaseHTTPMiddleware):
             budget_usd = key.budget_usd
 
         required_scope = None
-        if path.startswith("/v1/costs"):
+        if path.startswith("/admin"):
+            required_scope = "admin"
+        elif path.startswith("/v1/costs"):
             required_scope = "costs"
         elif path.startswith(("/generate", "/v1/chat/completions")):
             required_scope = "generate"

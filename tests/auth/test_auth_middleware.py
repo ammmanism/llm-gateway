@@ -1,18 +1,18 @@
 import asyncio
 
 import pytest
-from fastapi import FastAPI, Request
+from fastapi import Depends, FastAPI, Request
 from fastapi.testclient import TestClient
 
 from llm_gateway.auth.key_store import VirtualKeyStore
-from llm_gateway.security.auth import APIKeyAuthMiddleware
+from llm_gateway.security.auth import APIKeyAuthMiddleware, require_admin_api_key
 
 
 def build_app(store):
     app = FastAPI()
     app.add_middleware(
         APIKeyAuthMiddleware,
-        exclude_paths={"/health"},
+        exclude_paths={"/health", "/admin"},
         key_store=store,
     )
 
@@ -32,6 +32,10 @@ def build_app(store):
     @app.get("/v1/costs")
     async def costs(request: Request):
         return {"tenant_id": request.state.tenant_id}
+
+    @app.get("/admin/test", dependencies=[Depends(require_admin_api_key)])
+    async def admin():
+        return {"ok": True}
 
     return app
 
@@ -89,6 +93,17 @@ def test_revoked_key_is_rejected(auth):
     asyncio.run(store.revoke_key(raw_key))
 
     assert client.post("/generate", headers=headers(raw_key)).status_code == 401
+
+
+def test_admin_scope_is_required(auth):
+    client, store = auth
+    generate_key = asyncio.run(store.create_key("tenant-a", scopes=("generate",)))
+    admin_key = asyncio.run(store.create_key("tenant-a", scopes=("admin",)))
+
+    assert (
+        client.get("/admin/test", headers=headers(generate_key[0])).status_code == 403
+    )
+    assert client.get("/admin/test", headers=headers(admin_key[0])).status_code == 200
 
 
 def test_demo_mode_preserves_tenant_mapping(tmp_path, monkeypatch):
