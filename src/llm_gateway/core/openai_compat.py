@@ -44,8 +44,8 @@ class ChatCompletionRequest(BaseModel):
 
 
 def flatten_messages(messages: list[OpenAIMessage]) -> str:
-    """Preserve role boundaries when adapting to the gateway's prompt API."""
-    return "\n".join(f"{message.role}: {message.content}" for message in messages)
+    """Preserve role boundaries without firewall-sensitive role prefixes."""
+    return "\n\n".join(f"[{message.role}]\n{message.content}" for message in messages)
 
 
 def completion_id() -> str:

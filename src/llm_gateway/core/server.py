@@ -35,6 +35,12 @@ from llm_gateway.core.control_plane.router import router as admin_router
 from llm_gateway.core.core.batcher import NexusBatcher
 from llm_gateway.core.core.cost_tracker import NexusCostTracker
 from llm_gateway.core.core.heartbeat import HeartbeatMonitor
+from llm_gateway.core.openai_compat import (
+    ChatCompletionRequest,
+    completion_id,
+    completion_response,
+    flatten_messages,
+)
 from llm_gateway.observability.logging_middleware import StructuredLoggingMiddleware
 from llm_gateway.observability.metrics.cost_metrics import record_cost
 from llm_gateway.observability.metrics.prometheus import (
@@ -495,7 +501,12 @@ async def generate(request: GenerateRequest, req: Request):
             raise Exception("Chaos injected failure")
         await chaos.inject_latency(provider.__class__.__name__)
 
-        return await provider.generate(prompt=p_text, model=m_name)
+        return await provider.generate(
+            prompt=p_text,
+            model=m_name,
+            max_tokens=request.max_tokens,
+            temperature=request.temperature,
+        )
 
     # Try models in chain
     last_error = None
@@ -683,6 +694,31 @@ async def generate(request: GenerateRequest, req: Request):
         current_span.set_attribute("error.message", str(last_error))
         current_span.set_attribute("fallback_attempts", len(fallback_models))
     raise HTTPException(status_code=503, detail=f"All providers failed: {last_error}")
+
+
+@app.post("/v1/chat/completions")
+async def chat_completions(request: ChatCompletionRequest, req: Request):
+    """OpenAI-compatible non-streaming chat completion endpoint."""
+    if request.stream:
+        raise HTTPException(status_code=400, detail="Streaming is not enabled yet")
+
+    gateway_request = GenerateRequest(
+        prompt=flatten_messages(request.messages),
+        model=request.model,
+        temperature=request.temperature,
+        max_tokens=request.effective_max_tokens,
+        use_cache=True,
+        live_data=False,
+        stream=False,
+    )
+    result = await generate(gateway_request, req)
+    return JSONResponse(
+        completion_response(
+            result.model_dump(),
+            completion_id(),
+            request.model,
+        )
+    )
 
 
 @app.post("/generate/stream")

@@ -40,7 +40,7 @@ def test_flatten_messages_preserves_role_boundaries():
         OpenAIMessage(role="user", content="hello"),
     ]
 
-    assert flatten_messages(messages) == "system: be concise\nuser: hello"
+    assert flatten_messages(messages) == "[system]\nbe concise\n\n[user]\nhello"
 
 
 def test_completion_response_is_accepted_by_openai_sdk():
