@@ -35,6 +35,7 @@ the third column regenerates it.
 | `data/evidence/redis_consistency.csv` | Two workers share RPM limits and exact cache; concurrent budget increments sum exactly | `benchmarks/redis_consistency.py` |
 | `data/evidence/budget_atomic_race.csv` | 200 concurrent reservations never exceed a $1 cap; zero overspend | `benchmarks/budget_atomic_race.py` |
 | `data/evidence/coverage_summary.csv` | Real statement/branch coverage by module | `pytest --cov` + `benchmarks/coverage_summary.py` |
+| `data/evidence/streaming_accounting.csv` | Sync/stream token and cost parity across 20 request pairs | `benchmarks/streaming_accounting.py` |
 | `docs/evidence/figures/gateway_overhead.png` | Chart of the overhead CSV | `benchmarks/plot_evidence.py` |
 | `docs/evidence/figures/semantic_threshold_tradeoff.png` | Chart of the sweep CSV | `benchmarks/plot_evidence.py` |
 | `docs/evidence/figures/fallback_recovery_timeline.png` | Chart of the timeline CSV | `benchmarks/plot_evidence.py` |
@@ -43,9 +44,9 @@ the third column regenerates it.
 
 ### Medium priority
 
-1. **Branch coverage is 53.84%.** The report is real and committed, and CI
+1. **Branch coverage is 57.13%.** The report is real and committed, and CI
    publishes HTML/XML artifacts, but coverage is below a production-oriented
-   target. Next step: add provider-adapter, fallback-policy, and streaming tests.
+   target. Next step: add provider-adapter and fallback-policy edge-case tests.
 2. **Semantic cache is per process.** The FAISS index is in-process. Production
    multi-replica deployments need a shared vector store or an external cache.
 3. **Redis evidence is correctness, not scale.** A two-worker check proves shared
@@ -74,6 +75,8 @@ the third column regenerates it.
 - Virtual keys now support hashed storage, scopes, expiry, revocation, rotation,
   per-key RPM/TPM/budgets, SQLite/Postgres backends, Redis caching, and admin
   scope enforcement.
+- OpenAI-compatible chat completions support the official SDK for non-streaming
+  and SSE streaming; both paths record tokens, cost, ledger rows, and cleanup.
 - CI runs the full test suite and the real evidence generators instead of stale
   benchmark JSON.
 
@@ -81,7 +84,7 @@ the third column regenerates it.
 
 ```
 python -m pytest tests/ -q
-116 passed, 8 warnings in 29.75s (0:00:29)
+130 passed, 8 warnings in 52.10s (0:00:52)
 ```
 
 ```
@@ -92,7 +95,7 @@ python -m ruff format --check .
 150 files already formatted
 ```
 
-Branch coverage: **53.84%** (`data/evidence/coverage_summary.csv`).
+Branch coverage: **57.13%** (`data/evidence/coverage_summary.csv`).
 
 `tests/modality` was quarantined to `_superseded/tests-modality/` with a README
 explaining that it targets removed `SemanticRouter` / `CostOptimizer` /

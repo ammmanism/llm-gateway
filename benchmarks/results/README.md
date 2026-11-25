@@ -12,6 +12,7 @@ JSON files under this directory.
 | `prometheus_metrics_snapshot.txt` | `benchmarks/metrics_snapshot.py` |
 | `redis_consistency.csv` | `benchmarks/redis_consistency.py` |
 | `budget_atomic_race.csv` | `benchmarks/budget_atomic_race.py` |
+| `streaming_accounting.csv` | `benchmarks/streaming_accounting.py` |
 | `otel_span_sample.csv` | `benchmarks/otel_span_summary.py` |
 | `coverage_summary.csv` | `pytest --cov` + `benchmarks/coverage_summary.py` |
 
