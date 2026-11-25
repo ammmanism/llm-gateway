@@ -46,6 +46,7 @@ benchmarks/results/*.json
 benchmarks/reports/
 data/evidence/*.sqlite3
 data/cost_ledger.sqlite3
+data/api_keys.sqlite3*
 data/evidence/coverage.json
 .coverage
 htmlcov/
