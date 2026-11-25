@@ -1,5 +1,6 @@
 import asyncio
 import sqlite3
+from contextlib import closing
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -40,7 +41,7 @@ class CostLedger:
         return connection
 
     def _initialize(self) -> None:
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.execute("PRAGMA journal_mode=WAL")
             connection.execute(
                 """
@@ -112,7 +113,7 @@ class CostLedger:
                     "day": day,
                 }
             )
-        with self._connect() as connection:
+        with closing(self._connect()) as connection, connection:
             connection.executemany(
                 """
                 INSERT OR IGNORE INTO cost_entries (
@@ -162,7 +163,7 @@ class CostLedger:
             clauses.append("model = ?")
             params.append(model)
         where = " AND ".join(clauses)
-        with self._connect() as connection:
+        with closing(self._connect()) as connection:
             rows = connection.execute(
                 f"SELECT * FROM cost_entries WHERE {where} ORDER BY occurred_at",
                 params,
