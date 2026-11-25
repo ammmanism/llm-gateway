@@ -1,16 +1,12 @@
 import asyncio
 import json
-import sys
 import time
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-
 import uuid
+from pathlib import Path
 
 import numpy as np
 
-from src.cache.semantic import SemanticCache
+from llm_gateway.cache.semantic import SemanticCache
 
 
 async def run_benchmark():
