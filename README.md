@@ -4,7 +4,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.10+-blue.svg" alt="Python">
-  <img src="https://img.shields.io/badge/tests-87%20passing-brightgreen.svg" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-116%20passing-brightgreen.svg" alt="Tests">
   <img src="https://img.shields.io/badge/license-MIT-yellow.svg" alt="License">
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
 </p>
@@ -54,8 +54,8 @@ All values are copied from committed CSVs. The scripts are in `benchmarks/`.
 | Semantic cache, threshold `0.80` | **37.5%** hit rate, **8.3%** hard-negative FP (one wrong answer) |
 | Semantic cache, threshold `0.95` (old default) | **0%** hit rate on the same 24 paraphrases |
 | Circuit breaker, 2 s recovery timeout | detect **101 ms**, recover **2049 ms**, all 5 scenarios recovered |
-| Test suite | **87 passed** with Redis enabled (`python -m pytest tests/ -q`) |
-| Branch coverage | **50.21%** — 1,944 / 3,591 statements, 284 / 846 branches · [CSV](data/evidence/coverage_summary.csv) |
+| Test suite | **116 passed** with Redis + Postgres enabled (`python -m pytest tests/ -q`) |
+| Branch coverage | **53.84%** — 2,254 / 3,910 statements, 339 / 906 branches · [CSV](data/evidence/coverage_summary.csv) |
 | Redis consistency | 2 workers: **10/20** RPM attempts allowed, cache shared, budget total exact |
 | Atomic budget race | 200 reservations → **100 allowed**, **$0.000000 overspend** |
 | OTLP export | real collector captured `provider`, `model`, tokens, cost, latency, cache flag |
@@ -83,6 +83,7 @@ panel queries a metric that the request path actually updates.
 | **`live_data` bypass** | Skips both cache read and write for prices/inventory | [`tests/routing/integration/test_gateway_phase2.py`](tests/routing/integration/test_gateway_phase2.py) |
 | **Cost ledger + `/v1/costs`** | Idempotent SQLite ledger, batch writer, per-day/tenant/model summary | [`billing/cost_ledger.py`](src/llm_gateway/billing/cost_ledger.py) |
 | **Observability** | OTel spans (`provider`, `model`, tokens, `cost_usd`, `latency_ms`, `cache_hit`) + Prometheus `/metrics` | [`observability/`](src/llm_gateway/observability/) · [snapshot](data/evidence/prometheus_metrics_snapshot.txt) · [dashboard](docs/evidence/figures/grafana_dashboard.png) |
+| **Virtual keys** | SHA-256 hashed keys, scopes, expiry, revocation, rotation, per-key RPM/TPM/budget; SQLite/Postgres + Redis cache | [`auth/key_store.py`](src/llm_gateway/auth/key_store.py) · [`docs/auth/virtual-keys.md`](docs/auth/virtual-keys.md) |
 | **PII firewall** | Regex detection + sanitization before routing | [`security/firewall.py`](src/llm_gateway/security/firewall.py) |
 
 ## Quick start
@@ -94,16 +95,21 @@ pip install -e ".[dev,ml]"     # ml = sentence-transformers for neural embedding
 
 export OPENAI_API_KEY=sk-...   # optional; without keys the gateway returns mock responses
 
+# Create a real local virtual key (raw key is printed only once)
+export GATEWAY_API_KEY=$(python -c "import asyncio; from llm_gateway.auth.key_store import VirtualKeyStore; print(asyncio.run(VirtualKeyStore().create_key('local', scopes=('generate', 'costs', 'admin')))[0])")
+
+# Production: set DATABASE_URL=postgresql://... to use the shared Postgres store.
+# Local demo only: export ALLOW_DEMO_KEYS=true to accept arbitrary sk-* keys.
 uvicorn llm_gateway.core.server:app --reload
 ```
 
 ```bash
 curl -s localhost:8000/generate \
-  -H "Authorization: Bearer sk-demo" \
+  -H "Authorization: Bearer $GATEWAY_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{"prompt": "Explain vector databases", "model": "gpt-4o"}'
 
-curl -s localhost:8000/v1/costs?date=$(date -u +%F) -H "Authorization: Bearer sk-demo"
+curl -s "localhost:8000/v1/costs?date=$(date -u +%F)" -H "Authorization: Bearer $GATEWAY_API_KEY"
 curl -s localhost:8000/metrics | head
 ```
 
@@ -126,8 +132,10 @@ python benchmarks/plot_evidence.py           # -> docs/evidence/figures/*.png
 For coverage and OTLP evidence:
 
 ```bash
-REDIS_URL=redis://localhost:6379/0 pytest tests/ -q \
-  --cov=llm_gateway --cov-branch --cov-report=json:data/evidence/coverage.json
+REDIS_URL=redis://localhost:6379/0 \
+TEST_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/gateway_test \
+  pytest tests/ -q --cov=llm_gateway --cov-branch \
+  --cov-report=json:data/evidence/coverage.json
 python benchmarks/coverage_summary.py
 
 docker compose -f deploy/observability/docker-compose.yml up -d otel-collector
@@ -178,13 +186,13 @@ flowchart TD
 
 ```text
 $ python -m pytest tests/ -q
-87 passed, 8 warnings in 68.16s (0:01:08)
+116 passed, 8 warnings in 29.75s (0:00:29)
 ```
 
 With Redis enabled and branch coverage:
 
 ```text
-TOTAL  3591 statements, 1647 missed, 846 branches, 562 missed  50%
+TOTAL  3910 statements, 1656 missed, 906 branches, 567 missed  53%
 ```
 
 New coverage includes:
@@ -211,7 +219,7 @@ it targets removed APIs and is not counted above.
   budget counters use Redis when configured; a two-worker consistency check is
   committed, but this is not a high-scale load test.
 - Auth is a demonstration API-key/tenant map, not a full virtual-key database.
-- Branch coverage is **50.21%**. CI publishes the full report; raising it toward
+- Branch coverage is **53.84%**. CI publishes the full report; raising it toward
   80% is the next quality goal.
 - Benchmarks use a deterministic fake provider to isolate gateway cost from
   provider network variance. They are not claims about real provider latency.

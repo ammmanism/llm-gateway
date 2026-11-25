@@ -2,8 +2,9 @@
 
 `llm-gateway` is a modular FastAPI gateway with these active layers:
 
-1. **API and security** — API-key/tenant mapping, structured logs, security
-   headers, PII detection, RPM/TPM limiting, quotas, and budgets.
+1. **API and security** — hashed virtual API keys with scopes and per-key limits,
+   structured logs, security headers, PII detection, RPM/TPM limiting, quotas,
+   and atomic budgets.
 2. **Routing** — cost-aware, latency-aware, and Thompson-sampling adaptive
    routers with a policy-driven fallback chain.
 3. **Caching** — exact Redis/in-memory cache followed by an in-process FAISS HNSW

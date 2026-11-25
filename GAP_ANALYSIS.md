@@ -43,24 +43,21 @@ the third column regenerates it.
 
 ### Medium priority
 
-1. **Branch coverage is 50.21%.** The report is real and committed, and CI
+1. **Branch coverage is 53.84%.** The report is real and committed, and CI
    publishes HTML/XML artifacts, but coverage is below a production-oriented
    target. Next step: add provider-adapter, fallback-policy, and streaming tests.
 2. **Semantic cache is per process.** The FAISS index is in-process. Production
    multi-replica deployments need a shared vector store or an external cache.
-3. **Auth is a demonstration.** `APIKeyAuthMiddleware` validates an `sk-` prefix
-   and maps keys to tenants via `TENANT_API_KEYS`. It is not a virtual-key
-   database with rotation and scopes.
-4. **Redis evidence is correctness, not scale.** A two-worker check proves shared
+3. **Redis evidence is correctness, not scale.** A two-worker check proves shared
    RPM/TPM state, exact-cache visibility, and budget aggregation. It is not a
    high-concurrency load test.
 
 ### Low priority / non-goals
 
-5. **No managed UI.** There is no Next.js control plane in the evidence path.
-6. **No MCP gateway, no guardrail catalogue.** Out of scope; see
+4. **No managed UI.** There is no Next.js control plane in the evidence path.
+5. **No MCP gateway, no guardrail catalogue.** Out of scope; see
    `docs/COMPETITIVE_ANALYSIS.md`.
-7. **Benchmarks use a deterministic fake provider.** This isolates gateway
+6. **Benchmarks use a deterministic fake provider.** This isolates gateway
    overhead from provider network variance. It is not a claim about real
    provider latency or spend.
 
@@ -74,6 +71,9 @@ the third column regenerates it.
   Groq, Ollama, and vLLM response shapes.
 - Budget reservation is atomic in Redis and memory, wired per provider attempt,
   and verified with zero overshoot under 200 concurrent reservations.
+- Virtual keys now support hashed storage, scopes, expiry, revocation, rotation,
+  per-key RPM/TPM/budgets, SQLite/Postgres backends, Redis caching, and admin
+  scope enforcement.
 - CI runs the full test suite and the real evidence generators instead of stale
   benchmark JSON.
 
@@ -81,7 +81,7 @@ the third column regenerates it.
 
 ```
 python -m pytest tests/ -q
-87 passed, 8 warnings in 68.16s (0:01:08)
+116 passed, 8 warnings in 29.75s (0:00:29)
 ```
 
 ```
@@ -92,7 +92,7 @@ python -m ruff format --check .
 150 files already formatted
 ```
 
-Branch coverage: **50.21%** (`data/evidence/coverage_summary.csv`).
+Branch coverage: **53.84%** (`data/evidence/coverage_summary.csv`).
 
 `tests/modality` was quarantined to `_superseded/tests-modality/` with a README
 explaining that it targets removed `SemanticRouter` / `CostOptimizer` /
