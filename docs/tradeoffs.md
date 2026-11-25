@@ -23,6 +23,7 @@ part of the current selection score.
 ## Memory vs Redis
 
 In-memory state is simple and fast but per process. Redis backs rate limits,
-budgets, and the exact cache when configured. The FAISS semantic index remains
-per process. A two-worker Redis correctness check is committed in
-`data/evidence/redis_consistency.csv`.
+budgets, virtual-key lookup caching, and the exact cache when configured.
+SQLite or Postgres durably stores virtual keys and key policy. The FAISS
+semantic index remains per process. A two-worker Redis correctness check is
+committed in `data/evidence/redis_consistency.csv`.

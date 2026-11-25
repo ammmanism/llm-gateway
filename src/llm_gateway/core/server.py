@@ -8,6 +8,8 @@ from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
+import asyncpg
+import redis.asyncio as redis
 from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse, StreamingResponse
 from opentelemetry import trace as otel_trace
@@ -15,6 +17,9 @@ from pydantic import BaseModel, Field
 
 from llm_gateway.auth.admin.router import router as tenant_admin_router
 from llm_gateway.auth.budget_enforcer import BudgetEnforcer
+from llm_gateway.auth.cached_key_store import CachedVirtualKeyStore
+from llm_gateway.auth.key_store import VirtualKeyStore
+from llm_gateway.auth.postgres_key_store import PostgresVirtualKeyStore
 from llm_gateway.auth.quota_manager import QuotaManager
 from llm_gateway.billing.cost_ledger import CostLedger, new_entry
 from llm_gateway.cache.cache_manager import CacheManager
@@ -86,15 +91,69 @@ rate_limiter = RateLimiter(rpm_limit=100, tpm_limit=50000, window_seconds=60)
 adaptive_router = AdaptiveRouter()
 request_batcher = NexusBatcher()
 cost_tracker = NexusCostTracker()
+_key_rate_limiters: dict[tuple[int, int], RateLimiter] = {}
+_key_budget_enforcers: dict[float, BudgetEnforcer] = {}
+
+
+def _request_limiters(req: Request, tenant_id: str):
+    key_id = getattr(req.state, "key_id", None)
+    scope = tenant_id
+    if key_id and key_id != "demo":
+        scope = f"{tenant_id}:{key_id}"
+
+    rpm_limit = getattr(req.state, "rpm_limit", None)
+    tpm_limit = getattr(req.state, "tpm_limit", None)
+    if rpm_limit and tpm_limit:
+        limits = (int(rpm_limit), int(tpm_limit))
+        limiter = _key_rate_limiters.setdefault(
+            limits, RateLimiter(rpm_limit=limits[0], tpm_limit=limits[1])
+        )
+    else:
+        limiter = rate_limiter
+
+    budget_usd = getattr(req.state, "budget_usd", None)
+    if budget_usd is not None:
+        budget = float(budget_usd)
+        enforcer = _key_budget_enforcers.setdefault(
+            budget, BudgetEnforcer(default_budget=budget)
+        )
+    else:
+        enforcer = budget_enforcer
+    return scope, limiter, enforcer
+
 
 # Initialize admin dependencies
 init_admin_deps(cache_manager, quota_manager, budget_enforcer, health_checker)
+
+
+async def _create_virtual_key_store():
+    database_url = os.environ.get("DATABASE_URL", "")
+    pool = None
+    if database_url.startswith("postgresql://") or database_url.startswith(
+        "postgres://"
+    ):
+        pool = await asyncpg.create_pool(database_url)
+        store = PostgresVirtualKeyStore(pool)
+        await store.initialize()
+    else:
+        store = VirtualKeyStore(os.environ.get("API_KEY_DB_PATH"))
+
+    redis_url = os.environ.get("REDIS_URL")
+    if redis_url:
+        store = CachedVirtualKeyStore(
+            store,
+            redis.from_url(redis_url, decode_responses=True),
+        )
+    return store, pool
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Startup and shutdown events."""
     logger.info("Starting LLM Gateway...")
+    key_store, key_store_pool = await _create_virtual_key_store()
+    app.state.virtual_key_store = key_store
+    app.state.key_store_pool = key_store_pool
     # Initialize OpenTelemetry
     init_tracing(app, service_name="llm-gateway")
     ProviderFactory.get_all_providers()
@@ -110,6 +169,8 @@ async def lifespan(app: FastAPI):
         await cost_ledger.close()
     except Exception as exc:
         logger.warning("Cost ledger shutdown failed: %s", exc)
+    if key_store_pool is not None:
+        await key_store_pool.close()
     logger.info("Gateway shutdown")
 
 
@@ -256,6 +317,9 @@ async def generate(request: GenerateRequest, req: Request):
 
     if hasattr(req.state, "tenant_id"):
         request.tenant_id = req.state.tenant_id
+    limit_scope, active_rate_limiter, active_budget_enforcer = _request_limiters(
+        req, request.tenant_id
+    )
 
     # Get current span for attribute enrichment
     current_span = otel_trace.get_current_span()
@@ -298,8 +362,8 @@ async def generate(request: GenerateRequest, req: Request):
     estimated_completion_tokens = 1024  # default max_tokens
     estimated_total_tokens = estimated_prompt_tokens + estimated_completion_tokens
 
-    rate_limit_result = await rate_limiter.check_and_reserve(
-        request.tenant_id,
+    rate_limit_result = await active_rate_limiter.check_and_reserve(
+        limit_scope,
         estimated_tokens=estimated_total_tokens,
     )
     if not rate_limit_result.allowed:
@@ -439,8 +503,8 @@ async def generate(request: GenerateRequest, req: Request):
         attempt_estimated_cost = cost_tracker.estimate_text_cost(
             m_name, prompt_sanitized
         )
-        reservation = await budget_enforcer.reserve_budget(
-            request.tenant_id, attempt_estimated_cost
+        reservation = await active_budget_enforcer.reserve_budget(
+            limit_scope, attempt_estimated_cost
         )
         if not reservation.allowed:
             record_failure(request.tenant_id, "budget")
@@ -476,22 +540,22 @@ async def generate(request: GenerateRequest, req: Request):
             actual_tokens = prompt_tokens + completion_tokens
 
             # Reconcile TPM reservation with actual usage
-            await rate_limiter.reconcile_tokens(
-                request.tenant_id,
+            await active_rate_limiter.reconcile_tokens(
+                limit_scope,
                 estimated_tokens=estimated_total_tokens,
                 actual_tokens=actual_tokens,
             )
 
             cost = cost_tracker.calculate_cost(m_name, actual_tokens)
-            spent = await budget_enforcer.reconcile_cost(
-                request.tenant_id,
+            spent = await active_budget_enforcer.reconcile_cost(
+                limit_scope,
                 attempt_estimated_cost,
                 cost,
             )
             budget_settled = True
             update_budget_remaining(
                 request.tenant_id,
-                max(0.0, budget_enforcer.default_budget - spent),
+                max(0.0, active_budget_enforcer.default_budget - spent),
             )
 
             # Record metrics
@@ -571,8 +635,8 @@ async def generate(request: GenerateRequest, req: Request):
         except Exception as e:
             logger.warning(f"Model {m_name} failed: {e}")
             if not budget_settled:
-                await budget_enforcer.release_cost(
-                    request.tenant_id, attempt_estimated_cost
+                await active_budget_enforcer.release_cost(
+                    limit_scope, attempt_estimated_cost
                 )
 
             # Get circuit breaker state for this provider
@@ -605,8 +669,8 @@ async def generate(request: GenerateRequest, req: Request):
                 record_fallback(request.tenant_id, m_name, next_model, trigger)
 
             # Release token reservation for failed attempt
-            await rate_limiter.release_reservation(
-                request.tenant_id, estimated_total_tokens
+            await active_rate_limiter.release_reservation(
+                limit_scope, estimated_total_tokens
             )
             await adaptive_router.record_result(m_name, False, 5000, 0.0)
             last_error = e

@@ -35,7 +35,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 | Fallback on 429/5xx / open circuit | ✅ YAML chain, tested | ✅ | ✅ | ✅ |
 | Circuit breaker with limited half-open probes | ✅ CLOSED/OPEN/HALF_OPEN, probe cap, tests | ✅ | ✅ | ✅ |
 | Dual-metric rate limiting (RPM + TPM) | ✅ per tenant, Redis Lua + in-memory fallback | ✅ | ✅ | ✅ |
-| Per-tenant budgets / virtual keys | 🟡 atomic tenant spending cap + API-key tenant map; not a full key database | ✅ virtual keys, budgets | ✅ | ✅ virtual keys, budgets |
+| Per-tenant budgets / virtual keys | ✅ atomic budgets + hashed virtual keys, scopes, rotation, per-key RPM/TPM; SQLite/Postgres + Redis cache | ✅ virtual keys, budgets | ✅ | ✅ virtual keys, budgets |
 | Exact cache | ✅ Redis or in-process TTL | ✅ | ✅ | ✅ |
 | Semantic cache | ✅ in-process FAISS HNSW, neural embeddings, measured threshold sweep | ✅ Redis/Valkey-backed | ✅ simple + semantic | ✅ |
 | Cache threshold evidence committed | ✅ `semantic_threshold_sweep.csv` incl. hard negatives | ❔ | ❔ | ❔ |
@@ -46,7 +46,7 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 | MCP gateway | ➖ | ➖ | ❔ | ✅ |
 | Managed UI / control plane | ➖ | 🟡 admin UI | ✅ | ✅ web UI |
 | Committed, reproducible evidence artifacts | ✅ every claim maps to a CSV + script | ❔ | ❔ | ❔ |
-| Test suite | ✅ 87 passing with Redis (`pytest tests/ -q`) | ✅ | ✅ | ✅ |
+| Test suite | ✅ 116 passing with Redis + Postgres (`pytest tests/ -q`) | ✅ | ✅ | ✅ |
 
 ## What is genuinely differentiated here
 
@@ -75,12 +75,12 @@ Legend: ✅ implemented here and tested · 🟡 partial or basic · ➖ not a go
 - **Distributed consistency.** The FAISS semantic index is per process.
   Multi-replica semantic caching needs a shared vector store; exact caching,
   RPM/TPM limiting, and budget counters can use Redis.
-- **Auth.** The API-key middleware is a demonstration: it checks a prefix and
-  maps keys to tenants via `TENANT_API_KEYS`. It is not a virtual-key database
-  with rotation, scopes, or per-key budgets.
+- **Key provisioning.** The store supports full lifecycle operations, but key
+  creation/rotation is currently a library/CLI task rather than a managed admin
+  API or UI.
 - **Guardrails.** Regex PII detection only. Portkey's guardrail catalogue and
   Bifrost's MCP gateway are out of scope here.
-- **Coverage.** Branch coverage is **50.21%**. Ruff lint and formatting are green,
+- **Coverage.** Branch coverage is **53.84%**. Ruff lint and formatting are green,
   and CI publishes the full coverage report; raising coverage toward 80% is the
   next quality goal.
 

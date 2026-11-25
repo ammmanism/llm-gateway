@@ -25,6 +25,7 @@ def run_script(name: str) -> dict:
     print(f"Running {name}...")
     env = os.environ.copy()
     env.setdefault("OTEL_SDK_DISABLED", "true")
+    env.setdefault("ALLOW_DEMO_KEYS", "true")
     result = subprocess.run(
         [sys.executable, f"benchmarks/{name}"],
         capture_output=True,
